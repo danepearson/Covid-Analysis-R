@@ -1,0 +1,139 @@
+---
+title: "COVID Mortality Analysis Project"
+author: "Dane Pearson, Dhriti Avala"
+date: 12/2/2025
+format: 
+  html:
+    code-fold: true
+    code-summary: "Show the code"
+    embed-resources: true
+  pdf:
+    toc: true
+    toc-depth: 3
+    keep-tex: false
+    number-sections: true
+    echo: false
+execute:
+  warning: false
+  message: false
+---
+
+# Install packages:
+```{r}
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+```
+
+
+# Statistical Analysis of United States COVID Data
+
+------------------------------------------------------------------------
+## Load data:
+```{r}
+original_df <- read.csv(
+  "COVID-19_Deaths_by_Sex_Age.csv",
+  stringsAsFactors = TRUE
+)
+
+names(original_df)
+```
+
+
+## EDA:
+
+First convert Covid-19 Death column from factor to numeric, and remove commas in numbers:
+```{r}
+original_df$COVID.19.Deaths <- as.numeric(gsub(
+  ",",
+  "",
+  original_df$COVID.19.Deaths
+))
+
+# Ensure it was converted correctly
+# class(original_df$COVID.19.Deaths)
+```
+
+### Check for missing values:
+```{r}
+# names(original_df)
+
+# Count num of missing values in the columns we care about
+# (Some columns we will use have missing values intentionally based on schema)
+colSums(is.na(original_df[, c(
+  "Group",
+  "State",
+  "Sex",
+  "Age.Group",
+  "COVID.19.Deaths"
+)]))
+```
+
+I have chosen not to remove the missing values (NAs) in "COVID.19.Deaths" because the CDC intentionally "suppresses" (replaces with NA) populations that are too small for confidentiality purposes.
+
+### Verify no “Month” values fall outside 1-12:
+```{r}
+value_range <- range(original_df$Month, na.rm = TRUE)
+print(paste(
+  "Range of 'Month' column values:",
+  value_range[1],
+  "to",
+  value_range[2]
+))
+```
+
+### Ensure no negative values for Covid-19 Deaths:
+
+```{r}
+min_value <- min(original_df$COVID.19.Deaths)
+print(paste("Minimum value:", min_value))
+```
+
+
+### Plot COVID-19 deaths per month for the entire U.S.
+```{r}
+deaths_per_month_df <- original_df %>%
+  filter(
+    Group == "By Month" &
+      Sex == "All Sexes" &
+      Age.Group == "All Ages" &
+      State == "United States"
+  ) %>%
+  select(Year, Month, State, Sex, Age.Group, COVID.19.Deaths) %>%
+  mutate(
+    MonthDate = ymd(paste(Year, Month, "01", sep = "-"))
+  )
+
+# deaths_per_month_df
+
+ggplot(data = deaths_per_month_df, aes(x = MonthDate, y = COVID.19.Deaths)) +
+  geom_point() +
+  geom_smooth() +
+  labs(
+    title = "COVID-19 Deaths Over Time (2020-2023)",
+    x = "Time",
+    y = "Covid-19 Deaths"
+  ) +
+  theme_minimal()
+```
+
+Deaths from COVID-19 spiked drastically in late 2020 and early 2021, with the death rate lowering in mid 2021 and leveling off by early 2023. By mid-2021, the US began administering booster shots, over 70% of the US had received at least one dose of the vaccine, and 60% were fully vaccinated. This helps to explain how the national death rate began to decline at about the same time, since the vaccine is an effective way to prevent covid-related hospitalizations and transmission of the virus.
+
+
+### Do certain months have higher average deaths across all years?
+```{r}
+# Boxplot for each month across all years in the dataset
+ggplot(
+  data = deaths_per_month_df,
+  aes(x = factor(Month), y = COVID.19.Deaths)
+) +
+  geom_boxplot(color = "black", fill = "royalblue", alpha = 0.3) +
+  labs(
+    title = "Distribution of Monthly COVID-19 Deaths Across All Years",
+    x = "Month",
+    y = "COVID-19 Deaths"
+  ) +
+  theme_minimal()
+```
+
+Based on the boxplot, we can see that the average deaths per month across all years (2020-2023) peaked in January and December. This indicates a clear pattern of there being higher death rates in colder months, suggesting that the cold weather increases likelihood and spread of the virus. This may be due to the cold and dry air helping the virus survive longer and compromising people's immune systems, in addition to people spending more time indoors in close contact, allowing it to spread more easily.
