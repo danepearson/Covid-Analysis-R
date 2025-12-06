@@ -3,16 +3,22 @@ title: "COVID Mortality Analysis Project"
 author: "Dane Pearson, Dhriti Avala"
 date: 12/2/2025
 format: 
-  html:
+  elsevier-html:
     code-fold: true
     code-summary: "Show the code"
     embed-resources: true
-  pdf:
-    toc: true
-    toc-depth: 3
-    keep-tex: false
-    number-sections: true
-    echo: false
+  pdf: default
+  elsevier-pdf:
+    keep-tex: true
+    engine: xelatex # or lualatex
+    journal:
+      name: Journal Name
+      formatting: preprint
+      # model: 3p # Don't set a model with preprint
+      cite-style: authoryear
+# mainfont: "Times New Roman"
+# sansfont: "Times New Roman"
+# monofont: "Courier New"
 execute:
   warning: false
   message: false
@@ -44,7 +50,6 @@ state_populations_data <- read.csv(
   stringsAsFactors = TRUE
 )
 
-str(state_populations_data)
 ```
 
 
@@ -201,44 +206,6 @@ pie(
 ```
 
 
-## Statistical Analysis:
-
-### Multiple Linear Regression:
-
-##### The dataset used for the Multiple Linear Regression has one row for each unique combination of Year × Month × State × Sex × Age Group.
-
-```{r}
-monthly_age_sex_deaths <- original_df %>%
-  filter(Group == "By Month") %>%
-  distinct(Year, Month, State, Sex, Age.Group, .keep_all = TRUE) %>%
-  select(Group, Year, Month, State, Sex, Age.Group, COVID.19.Deaths)
-
-# str(monthly_age_sex_deaths)
-
-mlr_model <- lm(
-  COVID.19.Deaths ~ Age.Group + Sex + State + Month + Year,
-  data = monthly_age_sex_deaths
-)
-
-summary(mlr_model)
-
-```
-
----
-
-### Two-way ANOVA:
-##### How do age, sex, and state influence mortality by each month?
-
-```{r}
-anova_model <- aov(
-  COVID.19.Deaths ~ Age.Group * Sex,
-  data = monthly_age_sex_deaths
-)
-summary(anova_model)
-
-```
-
-
 ### Choropleth heatmap:
 
 ##### First, we need to get the populations of each state by doing a left join of US census data on the State column of the original dataset.
@@ -263,10 +230,10 @@ head(state_pops_clean, 3)
 left_df <- original_df %>%
   filter(
     Group == "By Year",
-    Sex == "All Sexes",
+    Sex != "All Sexes",
     Age.Group == "All Ages"
   ) %>%
-  select(State, Year, COVID.19.Deaths)
+  select(State, Year, COVID.19.Deaths, Sex)
 
 head(left_df, 3)
 
@@ -292,19 +259,103 @@ joined_df <- left_df %>%
 head(joined_df, 3)
 ```
 
+# Add a "region" column to the new joined data for by-region analysis:
+```{r}
+# Define the states in each region:
+west <- c(
+  "alaska",
+  "hawaii",
+  "washington",
+  "oregon",
+  "california",
+  "nevada",
+  "idaho",
+  "montana",
+  "wyoming",
+  "utah",
+  "colorado",
+  "arizona",
+  "new mexico"
+)
+
+midwest <- c(
+  "north dakota",
+  "south dakota",
+  "nebraska",
+  "kansas",
+  "minnesota",
+  "iowa",
+  "missouri",
+  "wisconsin",
+  "illinois",
+  "indiana",
+  "michigan",
+  "ohio"
+)
+
+south <- c(
+  "delaware",
+  "maryland",
+  "virginia",
+  "west virginia",
+  "kentucky",
+  "tennessee",
+  "north carolina",
+  "south carolina",
+  "georgia",
+  "florida",
+  "alabama",
+  "mississippi",
+  "arkansas",
+  "louisiana",
+  "texas",
+  "oklahoma",
+  "district of columbia"
+)
+
+northeast <- c(
+  "maine",
+  "new hampshire",
+  "vermont",
+  "massachusetts",
+  "rhode island",
+  "connecticut",
+  "new york",
+  "new jersey",
+  "pennsylvania"
+)
+
+# Add region column, remove rows with NA in region (for territories), and sort by year ascending
+joined_regional_df <- joined_df %>%
+  mutate(
+    region = case_when(
+      State %in% west ~ "west",
+      State %in% midwest ~ "midwest",
+      State %in% south ~ "south",
+      State %in% northeast ~ "northeast",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  mutate(region = as.factor(region)) %>%
+  drop_na() %>%
+  arrange(Year)
+
+head(joined_regional_df, 3)
+```
+
 ##### Now prepare subsets of the joined data by each year:
 
 ```{r}
-joined_2020 <- joined_df %>%
+joined_2020 <- joined_regional_df %>%
   filter(Year == "2020")
 
-joined_2021 <- joined_df %>%
+joined_2021 <- joined_regional_df %>%
   filter(Year == "2021")
 
-joined_2022 <- joined_df %>%
+joined_2022 <- joined_regional_df %>%
   filter(Year == "2022")
 
-joined_2023 <- joined_df %>%
+joined_2023 <- joined_regional_df %>%
   filter(Year == "2023")
 ```
 
@@ -339,5 +390,50 @@ ggplot(plot_map_df, aes(long, lat, group = group, fill = deaths_per_100000)) +
 
 ```
 
+---
+
+## Statistical Analysis:
+
+### Multiple Linear Regression:
+
+<!-- ##### The dataset used for the Multiple Linear Regression has one row for each unique combination of Year × Month × State × Sex × Age Group. -->
+
+
+```{r}
+
+# monthly_age_sex_deaths <- original_df %>%
+#   filter(Group == "By Month") %>%
+#   distinct(Year, Month, State, Sex, Age.Group, .keep_all = TRUE) %>%
+#   select(Group, Year, Month, State, Sex, Age.Group, COVID.19.Deaths)
+
+# # str(monthly_age_sex_deaths)
+
+mlr_model <- lm(
+  deaths_per_100000 ~ Year + region + Sex,
+  data = joined_regional_df
+)
+
+summary(mlr_model)
+
+```
+
+*The intercept is: Year = 0 (redundant), region = midwest, and Sex = Female*
+
+#### **Diagnostic plots for regression:**
+
+
+---
+
+### Two-way ANOVA:
+##### How do age, sex, and state influence mortality by each month?
+
+```{r}
+# anova_model <- aov(
+#   COVID.19.Deaths ~ Age.Group * Sex,
+#   data = monthly_age_sex_deaths
+# )
+# summary(anova_model)
+
+```
 
 ### Panel data plot:
