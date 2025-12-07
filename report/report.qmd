@@ -1,0 +1,62 @@
+---
+title: COVID-19 Mortality Anaysis Report
+subtitle: A Statistical Investigation using R
+author:
+  - name: Dane Pearson
+    email: daapears@ucsc.edu
+  - name: Dhriti Avala
+    email: davala@ucsc.edu
+
+date: last-modified
+format:
+  pdf:
+    documentclass: article
+    keep-tex: true
+    number-sections: true
+---
+
+# MAXIMUM 6 PAGES !
+
+# Introduction (0.75 - 1 page)
+- Research question or paper overview
+- Background and motivation (make sure to include proper citations)
+- Dataset description (source, size, key variables)
+- Study objectives
+
+
+# Exploratory Data Analysis (1 - 1.5 pages)
+- Summary statistics
+- Data visualization (2-3 key plots)
+- Data quality assessment (missing values, outliers, distributions)
+- Preliminary insights that inform modeling choices
+
+
+# Methods (1 - 1.5 pages)
+- Statistical models used, with mathematical notation where appropriate
+    - **For regression:** specify model equation, link function (if applicable), assumptions
+    - **For PCA:** explain dimensionality reduction approach
+    - **For clustering:** describe method and distance metric
+    - **For regularization:** specify penalty type and selection procedure
+- Why these methods? Connect to research questions and structure of data
+- Software and key R packages used (don’t forget to ***cite*** the R packages)
+
+
+# Results (2 - 2.5 pages)
+- Model fitting and diagnostics
+- Assumption checking (residual plots, normality tests, etc.)
+- Model comparison (if applicable)
+- Goodness-of-fit measures
+- Parameter interpretation with confidence intervals where appropriate
+- Key findings presented with visualizations
+
+
+# Discussion & Conclusion (0.75 - 1 page)
+- Answers to research questions with supporting evidence
+- Practical implications or insights
+- Limitations and assumptions
+- Future directions
+
+
+# References (not included in page count)
+- Use consistent citation style (APA, Chicago, or similar)
+- Include at least 2-3 references beyond the dataset source
