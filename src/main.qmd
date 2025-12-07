@@ -26,7 +26,7 @@ library(lubridate)
 library(ggplot2)
 library(tidyr)
 library(maps)
-
+library(patchwork)
 ```
 
 
@@ -127,7 +127,7 @@ ggplot(data = deaths_per_month_df, aes(x = MonthDate, y = COVID.19.Deaths)) +
 ```
 
 
-Deaths from COVID-19 spiked drastically in late 2020 and early 2021, with the death rate lowering in mid 2021 and leveling off by early 2023. By mid-2021, the US began administering booster shots, over 70% of the US had received at least one dose of the vaccine, and 60% were fully vaccinated. This could help to explain how the national death rate began declining at about the same time, since the vaccine has been an effective way to prevent covid-related hospitalizations and transmission of the virus.
+##### Deaths from COVID-19 spiked drastically in late 2020 and early 2021, with the death rate lowering in mid 2021 and leveling off by early 2023. By mid-2021, the US began administering booster shots, over 70% of the US had received at least one dose of the vaccine, and 60% were fully vaccinated. This could help to explain how the national death rate began declining at about the same time, since the vaccine has been an effective way to prevent covid-related hospitalizations and transmission of the virus.
 
 
 ### Did certain months have higher average deaths across all years?
@@ -139,6 +139,7 @@ ggplot(
   aes(x = factor(Month), y = COVID.19.Deaths)
 ) +
   geom_boxplot(color = "black", fill = "royalblue", alpha = 0.3) +
+  geom_point(position = position_jitter(width = 0), alpha = 0.4) +
   labs(
     title = "Distribution of Average Monthly COVID Deaths in U.S. (2020-2023)",
     x = "Month",
@@ -147,7 +148,7 @@ ggplot(
   theme_minimal()
 ```
 
-Based on the boxplot, we can see that the average deaths per month across all years (2020-2023) peaked in January and December. This indicates a clear pattern of there being higher death rates in colder months, suggesting that the cold weather increases likelihood and spread of the virus. This may be due to the cold and dry air helping the virus survive longer and compromising people's immune systems, in addition to people spending more time indoors in close contact, allowing it to spread more easily.
+##### Based on the boxplot, we can see that the average deaths per month across all years (2020-2023) peaked in January and December. This indicates a clear pattern of there being higher death rates in colder months, suggesting that the cold weather increases likelihood and spread of the virus. This may be due to the cold and dry air helping the virus survive longer and compromising people's immune systems, in addition to people spending more time indoors in close contact, allowing it to spread more easily.
 
 
 ### How did deaths vary across age groups in the US?
@@ -401,7 +402,7 @@ ggplot(plot_map_df, aes(long, lat, group = group, fill = deaths_per_100000)) +
 # # str(monthly_age_sex_deaths)
 
 mlr_model <- lm(
-  deaths_per_100000 ~ Year + region + Sex,
+  deaths_per_100000 ~ factor(Year) + region + Sex,
   data = joined_regional_df
 )
 
@@ -409,12 +410,44 @@ summary(mlr_model)
 
 ```
 
-*The intercept is: Year = 0 (redundant), region = midwest, and Sex = Female*
+##### **Comments:**
+###### - The intercept is: Year = 0 (redundant), region = midwest, and Sex = Female
+###### - We converted the Year variable into a factor for the MLR here because COVID death rates do not decline linearly over time. Treating the years as categorical allows us to fit separate means for each year, captures non-linear year effects, and reduces the residual patterns
 
 #### **Diagnostic plots for regression:**
 
 
----
+```{r}
+library(ggplot2)
+library(broom)
+
+# Residuals vs Fitted
+# Check linearity and homoscedasticity
+ggplot(mlr_model, aes(.fitted, .resid)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = "loess", se = FALSE, color = "blue") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Residuals vs Fitted", x = "Fitted", y = "Residuals") +
+  theme_minimal()
+```
+
+##### The Residuals vs Fitted plot demonstrates that the model clearly violates the asumption of **linearity**. By looking at the plot, we can see that the predictors (year, region, and sex) and the response variable (death rate) are not linearly related. The wavy LOESS curve demonstrates an uneven spread around the residuals = 0 line, indicating that the model is potentially overpredicting in some ranges and underpredicting in others. The assumption of **constant variance** (homoscedasticity) is also violated, exhibited by the widening funnel shape in the plot. The residuals at lower fitted values are closer together, while those at higher fitted values (~40–80 deaths per 100k) spread out dramatically. This means that the variance in error grows as the predicted mortality increases.
+
+```{r}
+# Q-Q Plot
+# Check normality of residuals
+ggplot(mlr_model, aes(sample = .resid)) +
+  stat_qq(alpha = 0.4) +
+  stat_qq_line(color = "blue") +
+  labs(
+    title = "Q-Q Plot",
+    x = "Theoretical Quantiles",
+    y = "Sample Quantiles"
+  ) +
+  theme_minimal()
+```
+
+##### The Q-Q plot demonstrates that the model clearly violates the asumption of **normality of the residuals**. The points deviate further below the line as the quantiles decrease in value, while deviating further above the line as the quantiles increase in value. The data is heavy-tailed, with the upper tail being heavier than the lower tail. This indicates that the data is too concentrated near the middle of the data, potentially due to outliers. 
 
 ### Two-way ANOVA:
 ##### How do age, sex, and state influence mortality by each month?
