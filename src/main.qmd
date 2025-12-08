@@ -21,24 +21,28 @@ execute:
 
 ## Install packages:
 ```{r}
-library(dplyr)
 library(lubridate)
 library(ggplot2)
 library(tidyr)
 library(maps)
 library(patchwork)
+library(dplyr)
+
+# For formatting tables nicely
+library(knitr)
+library(flextable)
 ```
 
 
 ## Load data:
 ```{r}
 original_df <- read.csv(
-  "../data/COVID-19_Deaths_by_Sex_Age.csv",
+  "data/COVID-19_Deaths_by_Sex_Age.csv",
   stringsAsFactors = TRUE
 )
 
 state_populations_data <- read.csv(
-  "../data/state_populations.csv",
+  "data/state_populations.csv",
   stringsAsFactors = TRUE
 )
 
@@ -107,8 +111,8 @@ deaths_per_month_df <- original_df %>%
       Sex == "All Sexes" &
       Age.Group == "All Ages" &
       State == "United States"
-  ) %>%
-  select(Year, Month, State, Sex, Age.Group, COVID.19.Deaths) %>%
+  ) |>
+  dplyr::select(Year, Month, State, Sex, Age.Group, COVID.19.Deaths) %>%
   mutate(
     MonthDate = ymd(paste(Year, Month, "01", sep = "-"))
   )
@@ -160,8 +164,8 @@ deaths_by_ages <- original_df %>%
       Sex == "All Sexes" &
       State == "United States" &
       Age.Group != "All Ages"
-  ) %>%
-  select(Age.Group, COVID.19.Deaths)
+  ) |>
+  dplyr::select(Age.Group, COVID.19.Deaths)
 
 # I realized there are overlapping age groups so I have to remove the redundant ones
 deaths_by_ages_clean <- deaths_by_ages %>%
@@ -207,8 +211,8 @@ pie(
 
 ```{r}
 # Right dataset
-state_pops_clean <- state_populations_data %>%
-  select(
+state_pops_clean <- state_populations_data |>
+  dplyr::select(
     NAME,
     POPESTIMATE2020,
     POPESTIMATE2021,
@@ -225,8 +229,8 @@ left_df <- original_df %>%
     Group == "By Year",
     Sex != "All Sexes",
     Age.Group == "All Ages"
-  ) %>%
-  select(State, Year, COVID.19.Deaths, Sex)
+  ) |>
+  dplyr::select(State, Year, COVID.19.Deaths, Sex)
 
 head(left_df, 3)
 
@@ -414,6 +418,9 @@ summary(mlr_model)
 ###### - The intercept is: Year = 0 (redundant), region = midwest, and Sex = Female
 ###### - We converted the Year variable into a factor for the MLR here because COVID death rates do not decline linearly over time. Treating the years as categorical allows us to fit separate means for each year, captures non-linear year effects, and reduces the residual patterns
 
+#### **Interpretation:**
+*insert interpretation here*
+
 #### **Diagnostic plots for regression:**
 
 
@@ -449,6 +456,84 @@ ggplot(mlr_model, aes(sample = .resid)) +
 
 ##### The Q-Q plot demonstrates that the model clearly violates the asumption of **normality of the residuals**. The points deviate further below the line as the quantiles decrease in value, while deviating further above the line as the quantiles increase in value. The data is heavy-tailed, with the upper tail being heavier than the lower tail. This indicates that the data is too concentrated near the middle of the data, potentially due to outliers. 
 
+
+### Poisson Regression:
+##### Use Poission regression to more accurately model the COVID deaths, since our data is count data not continuous.
+
+```{r}
+poisson_regression <- glm(
+  COVID.19.Deaths ~ Sex + region + Year,
+  family = poisson,
+  offset = log(Population), # so expected deaths scale proportionally with population
+  data = joined_regional_df
+)
+
+summary(poisson_regression)
+```
+
+#### **Interpretation:**
+- Male death rate is 21% higher than female death rate (controlling for region, year, and population)
+  - IRR = exp(0.1947) ≈ 1.21
+- The northeast has a 12% lower COVID death rate than the midwest
+  - IRR = exp(−0.1307) ≈ 0.88
+- The south has a 5% higher death rate than the midwest
+  - IRR = exp(0.04791) ≈ 1.05
+- The west has a 20% lower death rate than the midwest
+  - IRR = exp(−0.2217) ≈ 0.80
+- Year is trhe strongest predictor of death rate
+  - IRR = exp(−0.4413) ≈ 0.64
+  - For each additional year from 2020 to 2023, the COVID death rate decreases by about 36%
+- Very high overdispersion, violating the Poisson assumption that mean equals variance
+  - 236885 residual deviance / 402 dof ≈ 589
+
+
+### Negative Binomial Regression:
+
+```{r}
+library(MASS)
+
+neg_binomial_regression <- glm.nb(
+  COVID.19.Deaths ~ Sex + region + Year + offset(log(Population)),
+  data = joined_regional_df
+)
+
+summary(neg_binomial_regression)
+```
+
+#### **Interpretation:**
+
+
+### Compare Poisson vs Negative Binomial Regression:
+
+```{r}
+aic <- AIC(poisson_regression, neg_binomial_regression)
+kable(aic, caption = "AIC Results", digits = 1, align = "lcr")
+
+# exp(cbind(
+#   IRR = coef(neg_binomial_regression),
+#   confint(neg_binomial_regression)
+# ))
+
+joined_regional_df$pred_nb <- predict(
+  neg_binomial_regression,
+  type = "response"
+)
+
+ggplot(joined_regional_df, aes(x = pred_nb, y = COVID.19.Deaths)) +
+  geom_point(alpha = 0.4) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "blue") +
+  labs(
+    title = "Observed vs Predicted COVID Deaths (Negative Binomial)",
+    x = "Predicted Deaths",
+    y = "Observed Deaths"
+  ) +
+  theme_minimal()
+
+```
+
+
+---
+
 ### Two-way ANOVA:
 ##### How do age, sex, and state influence mortality by each month?
 
@@ -461,4 +546,10 @@ ggplot(mlr_model, aes(sample = .resid)) +
 
 ```
 
+
 ### Panel data plot:
+
+```{r}
+
+```
+
