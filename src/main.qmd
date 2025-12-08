@@ -420,15 +420,23 @@ mlr_model <- lm(
 )
 
 summary(mlr_model)
-
 ```
 
 ##### **Comments:**
 ###### - The intercept is: Year = 0 (redundant), region = midwest, and Sex = Female
 ###### - We converted the Year variable into a factor for the MLR here because COVID death rates do not decline linearly over time. Treating the years as categorical allows us to fit separate means for each year, captures non-linear year effects, and reduces the residual patterns
 
-#### **Interpretation:**
-*insert interpretation here*
+##### **Interpretation:**
+- The model explains about 63.6% of the variation in COVID-19 deaths per 100,000
+  - Adjusted R² = 0.636
+- COVID mortality peaked in 2021, then sharply declined in 2022–2023
+  - Mortality rates were 1.63 per 100k higher than 2020
+- All age groups below 40 years old had no statistically significant difference from the baseline age group of 0-17 years
+- The statistical sifgnificance of age group increases as age groups increase, with the 85+ age group exhibiting the highest mortality risk relative to the baseline
+- The south had significantly higher COVID mortality per 100k than all other regions
+  - States in the South are expected to have COVID-19 death rates that are about 0.66 deaths per 100,000 population higher than the Midwest, after accounting for differences in year, age group, and sex
+
+
 
 #### **Diagnostic plots for regression:**
 
@@ -447,7 +455,7 @@ ggplot(mlr_model, aes(.fitted, .resid)) +
   theme_minimal()
 ```
 
-##### The Residuals vs Fitted plot demonstrates that the model clearly violates the asumption of **linearity**. By looking at the plot, we can see that the predictors (year, region, and sex) and the response variable (death rate) are not linearly related. The wavy LOESS curve demonstrates an uneven spread around the residuals = 0 line, indicating that the model is potentially overpredicting in some ranges and underpredicting in others. The assumption of **constant variance** (homoscedasticity) is also violated, exhibited by the widening funnel shape in the plot. The residuals at lower fitted values are closer together, while those at higher fitted values (~40–80 deaths per 100k) spread out dramatically. This means that the variance in error grows as the predicted mortality increases.
+##### The Residuals vs Fitted plot demonstrates that the model clearly violates the asumption of **linearity**. By looking at the plot, we can see that the predictors (year, region, and sex) and the response variable (death rate) are not linearly related. The wavy LOESS curve demonstrates an uneven spread around the residuals = 0 line, indicating that the model is potentially overpredicting in some ranges and underpredicting in others. The assumption of **constant variance** (homoscedasticity) is also violated, exhibited by the widening funnel shape in the plot. The residuals at lower fitted values are closer together, while those at higher fitted values spread out more dramatically. This means that the variance in error grows as the predicted mortality increases.
 
 ```{r}
 # Q-Q Plot
@@ -463,7 +471,7 @@ ggplot(mlr_model, aes(sample = .resid)) +
   theme_minimal()
 ```
 
-##### The Q-Q plot demonstrates that the model clearly violates the asumption of **normality of the residuals**. The points deviate further below the line as the quantiles decrease in value, while deviating further above the line as the quantiles increase in value. The data is heavy-tailed, with the upper tail being heavier than the lower tail. This indicates that the data is too concentrated near the middle of the data, potentially due to outliers. 
+##### The Q-Q plot demonstrates that the model violates the asumption of **normality of the residuals**. The points slightly deviate below the line at and below theoretical quantiles of -3, while deviating much further above the line as the quantiles increase in value. The data is light-tailed, suggesting the data may be right-skewed and the model potentially underestimating high death-rate observations.
 
 
 ### Poisson Regression:
@@ -481,19 +489,18 @@ summary(poisson_regression)
 ```
 
 #### **Interpretation:**
-- Male death rate is 21% higher than female death rate (controlling for region, year, and population)
-  - IRR = exp(0.1947) ≈ 1.21
-- The northeast has a 12% lower COVID death rate than the midwest
-  - IRR = exp(−0.1307) ≈ 0.88
-- The south has a 5% higher death rate than the midwest
-  - IRR = exp(0.04791) ≈ 1.05
-- The west has a 20% lower death rate than the midwest
-  - IRR = exp(−0.2217) ≈ 0.80
-- Year is trhe strongest predictor of death rate
-  - IRR = exp(−0.4413) ≈ 0.64
-  - For each additional year from 2020 to 2023, the COVID death rate decreases by about 36%
-- Very high overdispersion, violating the Poisson assumption that mean equals variance
-  - 236885 residual deviance / 402 dof ≈ 589
+- The COVID-19 mortality rate for males is around 28% higher than for females
+  - IRR = exp(0.2448) ≈ 1.28
+- The Northeast had a 14% lower COVID-19 mortality rate than in the Midwest
+  - IRR = exp(−0.1501) ≈ 0.86
+- The South had a 10% higher COVID-19 mortality rate than the Midwest
+  - IRR = exp(0.0938) ≈ 1.10
+- The West had a 16% lower mortality rate than the Midwest
+  - IRR = exp(−0.1707) ≈ 0.84
+- Each additional year predicts a 35% decrease in the COVID-19 mortality rate
+  - IRR = exp(−0.4322) ≈ 0.65
+- Older adults showed much higher COVID-19 mortality rates, with the 85+ group having a more than 150 times higher death rate than 0-17 year olds
+- Overall, COVID-19 mortality rates grow with age, which is the strongest predictor of death in our Poisson regression model
 
 
 ### Negative Binomial Regression:
@@ -511,17 +518,18 @@ summary(neg_binomial_regression)
 ```
 
 #### **Interpretation:**
-- Male COVID-19 mortality rates are about 19% higher than female mortality rates
-  - exp(0.17665) ≈ 1.19
-- The northeast had ~12% lower mortality rates than the midwest 
-  - exp(–0.13279) ≈ 0.88
-  - This difference is not statistically significant at the 0.05 level though
-- The south had ~17% higher mortality rates than the midwest
-  - exp(0.15454) ≈ 1.17
-- The west had ~16% lower mortality rates than the midwest
-  - exp(–0.17090) ≈ 0.84
-- Each additional year predicts a 47% decrease in mortality rates
-  - exp(-0.6324) ≈ 0.53
+- Male COVID-19 mortality rates are about 37% higher than female mortality rates
+  - IRR = exp(0.31441) ≈ 1.37
+- The northeast had ~24% lower mortality rates than the midwest 
+  - IRR = exp(−0.27157) ≈ 0.76
+- The south had ~36% higher mortality rates than the midwest
+  - exp(0.30610) ≈ 1.36
+- The west had ~4% higher mortality rates than the midwest
+  - exp(-1.707e-01) ≈ 0.84
+- Each additional year predicts a 44% decrease in mortality rates
+  - exp(−0.58368) ≈ 0.56
+- The 85+ year old group had a more than 190 times higher death rate than 0-17 year olds
+- Similarly to the Poisson regression model, the Negative Binomial regression model predicts that COVID-19 mortality rates increase with age
 
 
 ### Compare Poisson vs Negative Binomial Regression:
@@ -530,7 +538,7 @@ aic <- AIC(poisson_regression, neg_binomial_regression)
 kable(aic, caption = "AIC Results", digits = 1, align = "lcr")
 ```
 
-##### The AIC (Akaike Information Criterion) comparison table comfirms that the negative binomial regression model performs better than poisson regression in predicting COVID mortality rates. The negative binomial regression model has a much lower AIC value of 6,457.5 compared to that of the poisson regression model (240,540.1). This demonstrates that the Negative Binomial approach exhibits a lower estimated prediction error and therefore better fits the mortality data. 
+##### The AIC (Akaike Information Criterion) comparison table comfirms that the Negative Binomial regression model performs better than poisson regression in predicting COVID mortality rates. The negative binomial regression model has a much lower AIC value of 44,747.3 compared to that of the Poisson Regression model (480,266.0). This demonstrates that the Negative Binomial approach exhibits a lower estimated prediction error and therefore better fits the mortality data. 
 
 
 ```{r}
