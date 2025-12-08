@@ -207,8 +207,6 @@ pie(
 
 ##### First, we need to get the populations of each state by doing a left join of US census data on the State column of the original dataset.
 
-##### Below you can see the first few rows of each dataset, with the last one being the left join of the two of them with an added death rate column:
-
 ```{r}
 # Right dataset
 state_pops_clean <- state_populations_data |>
@@ -228,9 +226,9 @@ left_df <- original_df %>%
   filter(
     Group == "By Year",
     Sex != "All Sexes",
-    Age.Group == "All Ages"
+    # Age.Group == "All Ages"
   ) |>
-  dplyr::select(State, Year, COVID.19.Deaths, Sex)
+  dplyr::select(State, Year, COVID.19.Deaths, Sex, Age.Group)
 
 head(left_df, 3)
 
@@ -248,6 +246,9 @@ state_pops_long <- state_pops_clean %>%
 # Join the two datasets using a left join
 joined_df <- left_df %>%
   left_join(state_pops_long, by = c("State", "Year")) %>%
+  # filter(
+  #   Age.Group == "All Ages"
+  # ) %>%
   mutate(
     deaths_per_100000 = (COVID.19.Deaths / Population) * 100000,
     State = tolower(State) # state names must be lowercase for choropleth map
@@ -337,7 +338,7 @@ joined_regional_df <- joined_df %>%
   drop_na() %>%
   arrange(Year)
 
-head(joined_regional_df, 3)
+# head(joined_regional_df, 3)
 ```
 
 ##### Now prepare subsets of the joined data by each year:
@@ -391,6 +392,8 @@ ggplot(plot_map_df, aes(long, lat, group = group, fill = deaths_per_100000)) +
 
 ## Statistical Analysis:
 
+#### *Can we predict death rates using the year, region and sex variables?*
+
 ### Multiple Linear Regression:
 
 <!-- ##### The dataset used for the Multiple Linear Regression has one row for each unique combination of Year × Month × State × Sex × Age Group. -->
@@ -405,9 +408,15 @@ ggplot(plot_map_df, aes(long, lat, group = group, fill = deaths_per_100000)) +
 
 # # str(monthly_age_sex_deaths)
 
+# summary(joined_regional_df)
+
+joined_regional_no_AllAges_df <- joined_regional_df %>%
+  filter(Age.Group != "All Ages")
+# summary(joined_regional_no_AllAges_df)
+
 mlr_model <- lm(
-  deaths_per_100000 ~ factor(Year) + region + Sex,
-  data = joined_regional_df
+  deaths_per_100000 ~ factor(Year) + Age.Group + region + Sex,
+  data = joined_regional_no_AllAges_df
 )
 
 summary(mlr_model)
@@ -462,10 +471,10 @@ ggplot(mlr_model, aes(sample = .resid)) +
 
 ```{r}
 poisson_regression <- glm(
-  COVID.19.Deaths ~ Sex + region + Year,
+  COVID.19.Deaths ~ Sex + region + Year + Age.Group,
   family = poisson,
   offset = log(Population), # so expected deaths scale proportionally with population
-  data = joined_regional_df
+  data = joined_regional_no_AllAges_df
 )
 
 summary(poisson_regression)
@@ -492,34 +501,50 @@ summary(poisson_regression)
 ```{r}
 library(MASS)
 
+# define model, using population as offset to scale porportionally
 neg_binomial_regression <- glm.nb(
-  COVID.19.Deaths ~ Sex + region + Year + offset(log(Population)),
-  data = joined_regional_df
+  COVID.19.Deaths ~ Sex + region + Year + Age.Group + offset(log(Population)),
+  data = joined_regional_no_AllAges_df
 )
 
 summary(neg_binomial_regression)
 ```
 
 #### **Interpretation:**
+- Male COVID-19 mortality rates are about 19% higher than female mortality rates
+  - exp(0.17665) ≈ 1.19
+- The northeast had ~12% lower mortality rates than the midwest 
+  - exp(–0.13279) ≈ 0.88
+  - This difference is not statistically significant at the 0.05 level though
+- The south had ~17% higher mortality rates than the midwest
+  - exp(0.15454) ≈ 1.17
+- The west had ~16% lower mortality rates than the midwest
+  - exp(–0.17090) ≈ 0.84
+- Each additional year predicts a 47% decrease in mortality rates
+  - exp(-0.6324) ≈ 0.53
 
 
 ### Compare Poisson vs Negative Binomial Regression:
-
 ```{r}
 aic <- AIC(poisson_regression, neg_binomial_regression)
 kable(aic, caption = "AIC Results", digits = 1, align = "lcr")
+```
 
+##### The AIC (Akaike Information Criterion) comparison table comfirms that the negative binomial regression model performs better than poisson regression in predicting COVID mortality rates. The negative binomial regression model has a much lower AIC value of 6,457.5 compared to that of the poisson regression model (240,540.1). This demonstrates that the Negative Binomial approach exhibits a lower estimated prediction error and therefore better fits the mortality data. 
+
+
+```{r}
 # exp(cbind(
 #   IRR = coef(neg_binomial_regression),
 #   confint(neg_binomial_regression)
 # ))
 
-joined_regional_df$pred_nb <- predict(
+joined_regional_no_AllAges_df$pred_nb <- predict(
   neg_binomial_regression,
   type = "response"
 )
 
-ggplot(joined_regional_df, aes(x = pred_nb, y = COVID.19.Deaths)) +
+ggplot(joined_regional_no_AllAges_df, aes(x = pred_nb, y = COVID.19.Deaths)) +
   geom_point(alpha = 0.4) +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "blue") +
   labs(
@@ -531,11 +556,12 @@ ggplot(joined_regional_df, aes(x = pred_nb, y = COVID.19.Deaths)) +
 
 ```
 
+##### The Observed vs Predicted COVID Deaths plot shows that the Negative Binomial Regression model is both underpredicting and overpredicting covid deaths. Notably, the fan-shaped pattern indicates that the model's prediction accuracy lessens as the number of deaths increase. Despite this, the model does a decent job of predicting the number of COVID deaths when the observed deaths are below about 60,000.
 
 ---
 
 ### Two-way ANOVA:
-##### How do age, sex, and state influence mortality by each month?
+##### How do age, sex, and region influence mortality by each month?
 
 ```{r}
 # anova_model <- aov(
@@ -545,7 +571,6 @@ ggplot(joined_regional_df, aes(x = pred_nb, y = COVID.19.Deaths)) +
 # summary(anova_model)
 
 ```
-
 
 ### Panel data plot:
 
