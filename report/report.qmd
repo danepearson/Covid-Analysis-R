@@ -13,7 +13,12 @@ format:
     documentclass: article
     keep-tex: true
     number-sections: true
+execute:
+  echo: false
+  # warning: false
+  # message: false
 ---
+
 
 # MAXIMUM 6 PAGES !
 
@@ -36,18 +41,20 @@ Our study aims to focus on four main objectives. First, we aim to analyze the pa
 
 
 # Exploratory Data Analysis (1 - 1.5 pages)
-- Summary statistics
+
+- Summary statistics ***STILL NEED TO FINISH***
 - Data visualization (2-3 key plots)
 - Data quality assessment (missing values, outliers, distributions)
 - Preliminary insights that inform modeling choices
 
+Our "Provisional COVID-19 Deaths by Sex and Age" dataset from the CDC 
+
+![Number of NAs in key columns of original dataset](../images/NAs.png)
+
 
 # Methods (1 - 1.5 pages)
 - Statistical models used, with mathematical notation where appropriate
-    - **For regression:** specify model equation, link function (if applicable), assumptions
-    - **For PCA:** explain dimensionality reduction approach
-    - **For clustering:** describe method and distance metric
-    - **For regularization:** specify penalty type and selection procedure
+    - **For regression:** specify model equation, link function, assumptions
 - Why these methods? Connect to research questions and structure of data
 - Software and key R packages used (don’t forget to ***cite*** the R packages)
 
