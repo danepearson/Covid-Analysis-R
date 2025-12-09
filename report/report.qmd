@@ -205,9 +205,15 @@ This study examined how COVID-19 mortality varied across demographic groups, geo
 
 During our analysis, we noticed a few clear patters. Mortality peaked nationally in late 2020 and early 2021, with a sharp decline in mid-2021. Age was the strongest predictor of mortality, those over the age of 75 experienced higher death rates than younger groups. Males consistantly showed to have higher mortality in comparison to females. Regionally, the South showed elevated death rates, while regions such as the Northeast had very high early mortality followed by lower rates in later years. These trends are evident in the visualizations and further backed by our statistical models.
 
-The regression models provided a form of additional support for these finding, while the Multiple Regression model helped in identifying relationships, and diagnostic checks showed potential violations of key assumptions. The Poisson model was able to capture the count based 
+The regression models provided a form of additional support for these finding, while the Multiple Regression model helped in identifying relationships, and diagnostic checks showed potential violations of key assumptions. The Poisson model was able to capture the count based characteristics of the data, but was also able to show its strong overdispersion. The Negative Binomial model was the best fit for the data, showing that mortality decreased significantly over time, males had higher death rates compared to females, and regional differences were statisically significant. The Two-Way ANOVA further revealed that the effect of age group on mortality changed based on males and females, emphasizing the importance of demographic interactions.
 
+All of these findings have meaningful implications for public health, for instance, the strong age related disparities emphasize the importance of ensuring that older adults are protected through the aid of vaccines, boosters, and early treatment access. Regional patters show that state-level health policy, socioeconomic factors, and healthcare capacities also influence COVID-19 mortality patterns. Being able to understand these differences can help create interventions for potential future public health emergencies. 
 
+However, something to note is that this study does have its limitations, the CDC's provitional data includes supressed values for smaller populations, making it harder to gain insight from certain states or demographic groups. Additionally, important factor such as comorbidities, vaccination rates, and socioeconomic status were not included in the dataset, while state level analysis may also hide variation within states. 
+
+In the future, we would like to use additional predictors like vaccination coverage, variant spread, or county-level data to better understand patterns. We would also like to use more advanced modeling approaches, for example, time series models, could help capture heirarchical structure more effectively. 
+
+All in all, this analysis was able to provide a clear and statistical understanding of how COVID-19 mortality varied across demographic and geographic dimensions in the United States, providing insights that may help implement preventative or early intervention health strategies in the future. 
 
 
 # References (not included in page count)
