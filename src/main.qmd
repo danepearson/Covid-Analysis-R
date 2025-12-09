@@ -151,6 +151,9 @@ ggplot(
     y = "COVID-19 Deaths"
   ) +
   theme_minimal()
+
+
+# summary(deaths_per_month_df)
 ```
 
 ##### Based on the boxplot, we can see that the average deaths per month across all years (2020-2023) peaked in January and December. This indicates a clear pattern of there being higher death rates in colder months, suggesting that the cold weather increases likelihood and spread of the virus. This may be due to the cold and dry air helping the virus survive longer and compromising people's immune systems, in addition to people spending more time indoors in close contact, allowing it to spread more easily.
@@ -618,13 +621,49 @@ ggplot(
 #### Interpretation:
 - From ages 0-44 years old, the interaction plot suggests that sex has little effect on predicted COVID-19 deaths
 - According to the plot, being male increases COVID-19 deaths much more in those aged 45-84 years old than being female, as the average COVID-19 deaths for males is much higher in that age bracket
-- After age 84, the effect of sex on predicted COVID-19 deaths reverses depending on age group, indicating an interaction between the two predictive variables 
+- After age 84, the effect of sex on predicted COVID-19 deaths reverses depending on age group, indicating an interaction between the two predictive variables
 
 ---
 
 ### Panel data plot:
 
 ```{r}
+# summary(joined_regional_no_AllAges_df)
+
+region_year_panel <- joined_regional_no_AllAges_df %>%
+  group_by(region, Year) %>%
+  summarise(
+    deaths = sum(COVID.19.Deaths, na.rm = TRUE),
+    population = sum(Population, na.rm = TRUE),
+    deaths_per_100000 = (deaths / population) * 100000,
+    .groups = "drop"
+  )
+
+ggplot(
+  region_year_panel,
+  aes(x = Year,
+      y = deaths_per_100000,
+      color = region,
+      group = region)
+) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 2.5) +   # optional—remove this line if you don't want points
+  labs(
+    title = "COVID-19 Death Rates by Region (per 100,000)",
+    x = "Year",
+    y = "Deaths per 100,000",
+    color = "Region"
+  ) +
+  scale_x_continuous(
+    breaks = c(2020, 2021, 2022, 2023),
+    labels = c("2020", "2021", "2022", "2023")
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    axis.text.x = element_text(size = 11)
+  )
+
 
 ```
 
