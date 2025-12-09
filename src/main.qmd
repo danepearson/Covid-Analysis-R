@@ -17,7 +17,9 @@ execute:
 ---
 
 
-# Statistical Analysis of United States COVID-19 Data
+# Statistical Analysis of US COVID-19 Mortality in R:
+
+---
 
 ## Install packages:
 ```{r}
@@ -32,6 +34,10 @@ library(dplyr)
 # For formatting tables nicely
 library(knitr)
 library(flextable)
+library(modelsummary)
+library(kableExtra)
+
+
 ```
 
 
@@ -52,6 +58,28 @@ state_populations_data <- read.csv(
 
 ## EDA:
 
+### Make summary tables of both datasets:
+```{r}
+original_summary <- summary(original_df)
+state_pop_summary <- summary(state_populations_data)
+
+kable(
+  original_summary,
+  caption = "Original dataset summary",
+  digits = 1,
+  align = "l"
+)
+
+kable(
+  state_pop_summary,
+  caption = "State populations dataset summary",
+  digits = 1,
+  align = "l"
+)
+
+```
+
+
 First convert Covid-19 Death column from factor to numeric, and remove commas in numbers:
 
 ```{r}
@@ -68,17 +96,26 @@ original_df$COVID.19.Deaths <- as.numeric(gsub(
 ### Check for missing values:
 
 ```{r}
-# names(original_df)
-
 # Count num of missing values in the columns we care about
 # (Some columns we will use have missing values intentionally based on schema)
-colSums(is.na(original_df[, c(
+
+col_nas <- colSums(is.na(original_df[, c(
   "Group",
   "State",
   "Sex",
   "Age.Group",
   "COVID.19.Deaths"
 )]))
+
+# Convert to a data frame with one row
+col_nas_df <- as.data.frame(t(col_nas))
+
+kable(
+  col_nas_df,
+  caption = "NAs per column",
+  digits = 1,
+  align = "c"
+)
 ```
 
 I have chosen not to remove the missing values (NAs) in "COVID.19.Deaths" because the CDC intentionally "suppresses" (replaces with NA) populations that are too small for confidentiality purposes. I do not want to create bias in the data by removing data from smaller populations.
@@ -184,7 +221,13 @@ deaths_by_ages_clean <- deaths_by_ages %>%
       )
   )
 
-deaths_by_ages_clean
+kable(
+  deaths_by_ages_clean,
+  caption = "Total COVID-19 Deaths per Age group",
+  digits = 1,
+  col.names = c("Age Group", "Total Deaths"),
+  align = "l"
+)
 
 # Add threshold to group together smaller slices
 threshold <- 0.02 * sum(deaths_by_ages_clean$COVID.19.Deaths)
@@ -209,7 +252,7 @@ pie(
 
 ### Choropleth heatmap:
 
-##### First, we need to get the populations of each state by doing a left join of US census data on the State column of the original dataset.
+##### First, we need to get the populations of each state by doing a left join of US census data on the State column of the original dataset. Below are the first few rows of each of the datasets used in the join:
 
 ```{r}
 # Right dataset
@@ -223,7 +266,21 @@ state_pops_clean <- state_populations_data |>
   ) %>%
   rename(State = NAME)
 
-head(state_pops_clean, 3)
+head_state_pops <- head(state_pops_clean, 3)
+
+kable(
+  head_state_pops,
+  caption = "State Populations Dataset (right data)",
+  digits = 1,
+  col.names = c(
+    "State",
+    "2020 Population",
+    "2021 Population",
+    "2022 Population",
+    "2023 Population"
+  ),
+  align = "l"
+)
 
 # Left dataset where each row is a state and its population during a year
 left_df <- original_df %>%
@@ -234,7 +291,21 @@ left_df <- original_df %>%
   ) |>
   dplyr::select(State, Year, COVID.19.Deaths, Sex, Age.Group)
 
-head(left_df, 3)
+head_left <- head(left_df, 3)
+
+kable(
+  head_left,
+  caption = "Original Mortality Dataset (left data)",
+  digits = 1,
+  col.names = c(
+    "State",
+    "Year",
+    "COVID-19 Deaths",
+    "Sex",
+    "Age Group"
+  ),
+  align = "l"
+)
 
 # Make the right dataset long so it has one row for each state and year pair for compatible joining
 state_pops_long <- state_pops_clean %>%
@@ -258,10 +329,26 @@ joined_df <- left_df %>%
     State = tolower(State) # state names must be lowercase for choropleth map
   )
 
-head(joined_df, 3)
+head_joined <- head(joined_df, 3)
+
+kable(
+  head_joined,
+  caption = "Left Join of Mortality and Populations Datasets",
+  digits = 1,
+  col.names = c(
+    "State",
+    "Year",
+    "COVID-19 Deaths",
+    "Sex",
+    "Age Group",
+    "Population",
+    "Deaths per 100,000"
+  ),
+  align = "l"
+)
 ```
 
-##### Add a "region" column to the new joined data for by-region analysis:
+##### Add a "region" and death rate columns to the new joined data.
 ```{r}
 # Define the states in each region:
 west <- c(
@@ -345,7 +432,7 @@ joined_regional_df <- joined_df %>%
 # head(joined_regional_df, 3)
 ```
 
-##### Now prepare subsets of the joined data by each year:
+##### Prepare subsets of the joined data by each year.
 
 ```{r}
 joined_2020 <- joined_regional_df %>%
@@ -361,7 +448,7 @@ joined_2023 <- joined_regional_df %>%
   filter(Year == "2023")
 ```
 
-##### Finally, plot the choropleth maps across 2020-2023:
+##### Finally, plot the choropleth maps for 2020-2023:
 
 ```{r}
 
@@ -581,6 +668,22 @@ anova_model <- aov(
   data = joined_regional_no_AllAges_df
 )
 summary(anova_model)
+anova_summary <- summary(anova_model)
+
+# apa.aov.table(lm_output = anova_model, filename = "anova_table.rtf") # Exports to RTF, can be converted to PDF
+
+# anova_df <- as.data.frame(summary(anova_model)[[1]])
+
+# kable(
+#   anova_df,
+#   format = "latex",
+#   booktabs = TRUE,
+#   caption = "ANOVA Results for COVID-19 Mortality Model",
+#   digits = 3
+# ) %>%
+#   kable_styling(
+#     latex_options = c("hold_position", "striped")
+#   )
 
 ```
 
@@ -641,13 +744,10 @@ region_year_panel <- joined_regional_no_AllAges_df %>%
 
 ggplot(
   region_year_panel,
-  aes(x = Year,
-      y = deaths_per_100000,
-      color = region,
-      group = region)
+  aes(x = Year, y = deaths_per_100000, color = region, group = region)
 ) +
   geom_line(linewidth = 1.2) +
-  geom_point(size = 2.5) +   # optional—remove this line if you don't want points
+  geom_point(size = 2.5) + # optional—remove this line if you don't want points
   labs(
     title = "COVID-19 Death Rates by Region (per 100,000)",
     x = "Year",
@@ -664,6 +764,6 @@ ggplot(
     axis.text.x = element_text(size = 11)
   )
 
-
 ```
 
+#### Interpretation:
