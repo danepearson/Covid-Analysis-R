@@ -158,6 +158,16 @@ Using a combination of linear regression, Poisson and Negative Binomial linear m
 - Future directions
 
 
+This study examined how COVID-19 mortality varied across demographic groups, geographic regions, and time in the United States from 2020 to 2023. By combining the CDC's provisional death counts with state level population estimates, we were able to evaluate death rates per 100,000 people and use regression modeling in addition to visualizations to identify the factors strongly associated with COVID-19 mortality. Ultimately, these findings consistantly showed that age group, sex, region, and year played significant roles in shaping mortality patterns.  
+
+
+During our analysis, we noticed a few clear patters. Mortality peaked nationally in late 2020 and early 2021, with a sharp decline in mid-2021. Age was the strongest predictor of mortality, those over the age of 75 experienced higher death rates than younger groups. Males consistantly showed to have higher mortality in comparison to females. Regionally, the South showed elevated death rates, while regions such as the Northeast had very high early mortality followed by lower rates in later years. These trends are evident in the visualizations and further backed by our statistical models.
+
+The regression models provided a form of additional support for these finding, while the Multiple Regression model helped in identifying relationships, and diagnostic checks showed potential violations of key assumptions. The Poisson model was able to capture the count based 
+
+
+
+
 # References (not included in page count)
 - Use consistent citation style (APA, Chicago, or similar)
 - Include at least 2-3 references beyond the dataset source
