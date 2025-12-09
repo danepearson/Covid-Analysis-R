@@ -39,7 +39,7 @@ execute:
 &nbsp;&nbsp;&nbsp;&nbsp;Our study aims to focus on four main objectives. First, we aim to analyze the patters in U.S COVID-19 using detailed analysis and graphical visualizations of death rates across all months from 2020 to 2023. Second, we aim to examine demographic patterns by analyzing deaths across age groups and sex. Third, we use visualizations such as heatmaps to depict state-level variation in COVID-19 death rates. Lastly, we utilize a variety of modeling approaches such as Multiple Linear Regression, Poisson Regression, Two-Way ANOVA, amongst a few others, to quantify the effects of year, region, age group, and sex on COVID-19 mortality. Ultimately, these analyses help to provide a comprehensive understanding of factors associated with COVID-19 death rates in the United States and show how mortality has changed over the course of the pandemic. 
 
 
-# Exploratory Data Analysis (1 - 1.5 pages)
+# Exploratory Data Analysis
 
 \begin{center}
 \text{Table 1. Summary of Provisional COVID-19 Deaths}
@@ -66,19 +66,17 @@ execute:
 
 &nbsp;&nbsp;&nbsp;&nbsp;Our original, unaltered "Provisional COVID-19 Deaths by Sex and Age" dataset from the CDC has 138,000 rows and 16 columns. The key columns we are focusing on for this project are "Group" (whether data was measured by Month, by Year, or Total), "Year", "Month", "State", "Sex", "Age Group", and "COVID.19.Deaths". Before conducting the main exploratory analysis, we exmined the number of missing values (NA) in each of the variables of interest. We did not count the number of missing values of the "Year" and "Month" columns, as they have missing values depending on whether the respective row was measured by year or by month. Each key column had no missing values, aside from "COVID.19.Deaths", which had 39,430 rows with no value. 
 
-![Number of NAs in key columns of original dataset.](../images/NAs.png){width=70%}
+![Number of NAs in Key Columns of Mortality Dataset.](../images/NAs.png){width=70%}
 
 &nbsp;&nbsp;&nbsp;&nbsp;Following this, we explored how the frequency of deaths changed over time in the data, plotting the average total deaths across in the entire US for each month, from 2020-2023. We found that deaths from COVID-19 spiked drastically in late 2020 and early 2021, with the death rate lowering in mid 2021 and leveling off by early 2023. 
 
-![Total COVID-19 Deaths per Month in the US (2020-2023)](../images/deaths_time.png){width=70%}
+![Total COVID-19 Deaths per Month in the US (2020-2023)](../images/deaths_time.png){width=65%}
 
-&nbsp;&nbsp;&nbsp;&nbsp;The decline COVID-19 deaths in mid-2021 coincides with the release and administration of the vaccine, as more than 70% of the U.S. population had received at least one vaccine dose, and approximately 60% were fully vaccinated by this time. These developments may have contributed to the observed reduction in mortality, as vaccination has been shown to substantially decrease the risk of severe illness, hospitalization, and transmission.
-
-&nbsp;&nbsp;&nbsp;&nbsp;Although this was insightful, we wanted to dive deeper by examining the distribution of each month's COVID-19 deaths in the US, averaged across 2020-2023. By creating a boxplot for each month, a clear seasonal pattern was revealed: mortality was highest in December and January and lowest during the summer months, particularly June. 
+&nbsp;&nbsp;&nbsp;&nbsp;The decline COVID-19 deaths in mid-2021 coincides with the release and administration of the vaccine, as more than 70% of the U.S. population had received at least one vaccine dose, and approximately 60% were fully vaccinated by this time. These developments may have contributed to the observed reduction in mortality, as vaccination has been shown to substantially decrease the risk of severe illness, hospitalization, and transmission. Although this was insightful, we wanted to dive deeper by examining the distribution of each month's COVID-19 deaths in the US, averaged across 2020-2023. By creating a boxplot for each month, a clear seasonal pattern was revealed: mortality was highest in December and January and lowest during the summer months, particularly June. 
 
 ![Distribution of Average Monthly COVID-19 Deaths (2020-2023)](../images/monthly_dists.png){width=75%}
 
-&nbsp;&nbsp;&nbsp;&nbsp;This pattern indicates that higher COVID-19 mortality in the United States was associated with colder periods of the year, whereas lower mortality aligned with warmer periods. Seasonal factors may help explain this trend, as colder and drier conditions can weaken immune defenses and aid viruses in surviving longer. Increased time inside during colder months may have also promoted greater transmission of the COVID-19 virus.
+&nbsp;&nbsp;&nbsp;&nbsp;This pattern indicates that higher COVID-19 mortality in the United States was associated with colder periods of the year, whereas lower mortality aligned with warmer periods. Seasonal factors may help explain this, as colder and drier conditions can weaken immune defenses and aid viruses in surviving longer. Increased time inside during colder months may have also promoted greater transmission of the COVID-19 virus.
 
 &nbsp;&nbsp;&nbsp;&nbsp;Next, we analyzed how COVID-19 mortality varied across the different age groups. We found that older ages were directly associated with increases deaths. Those age 85 and older accounted for 311,863 total COVID-19 deaths across all states from 2020-2023 in the United States, while individuals younger than 35 accounted for 16,735 COVID-19 deaths.
 
@@ -95,11 +93,11 @@ execute:
 - Why these methods? Connect to research questions and structure of data
 - Software and key R packages used (don’t forget to ***cite*** the R packages)
 
-In order to understand how COVID-19 mortality varies across time, demographics groups, and U.S regions, we used a combination of exploratory visualization and statistical modeling techniques. Each method was selected accordingly to adhere to the structure of the dataset, count based, non-normally distributed outcomes with strong demographic groupings as well as address our main reserach question regarding geographic and demographic predictors of COVID-19 mortality. We conducted this analysis in R using the following packages: tidyverse (Wickham et al., 2019) for data manipulation and visualization, lubridate (Grolemund & Wichhamm, 2011) for date handling, ggplot (Wickham, 2016) for plotting, maps for state analysis, MASS (Venables & Ripley, 2002) for Negative Binomial modeling, and broom for model diagnostics. 
+&nbsp;&nbsp;&nbsp;&nbsp;In order to understand how COVID-19 mortality varies across time, demographics groups, and U.S regions, we used a combination of exploratory visualization and statistical modeling techniques. Each method was selected accordingly to adhere to the structure of the dataset, count based, non-normally distributed outcomes with strong demographic groupings as well as address our main reserach question regarding geographic and demographic predictors of COVID-19 mortality. We conducted this analysis in R using the following packages: tidyverse (Wickham et al., 2019) for data manipulation and visualization, lubridate (Grolemund & Wichhamm, 2011) for date handling, ggplot (Wickham, 2016) for plotting, maps for state analysis, MASS (Venables & Ripley, 2002) for Negative Binomial modeling, and broom for model diagnostics. 
 
 ## Multiple Linear Regression (MLR)
 
-As a baseline model we fit a multiple linear regression predicting standardized mortality rates:
+&nbsp;&nbsp;&nbsp;&nbsp;As a baseline model we fit a multiple linear regression predicting standardized mortality rates:
 
 
 $$
@@ -108,12 +106,12 @@ Y_i = \beta_0 + \beta_1 \text{Year}_i + \beta_2 \text{AgeGroup}_i +
 $$
 
 
-We included 'Year' as a factor rather than a numeric variable because early exploratory analysis showed a non-linear decline in mortality rates over time. Mulitple Linear Regression provides estimates that quantify differences between demographics and geographic subgroups. Additionally, MLR assumes linearity between the predictors and outcomes, error homoscedasticity, and normally distributed residuals. We developed some diagnostic plots which indicated violations of linearity and constant variance, suggesting that linear regression may provide a biased standard error, pushing for the use of a count-based generalized linear model. 
+&nbsp;&nbsp;&nbsp;&nbsp;We included 'Year' as a factor rather than a numeric variable because early exploratory analysis showed a non-linear decline in mortality rates over time. Mulitple Linear Regression provides estimates that quantify differences between demographics and geographic subgroups. Additionally, MLR assumes linearity between the predictors and outcomes, error homoscedasticity, and normally distributed residuals. We developed some diagnostic plots which indicated violations of linearity and constant variance, suggesting that linear regression may provide a biased standard error, pushing for the use of a count-based generalized linear model. 
 
 
 ## Poisson Regression
 
-Since COVID-19 death counts are non-negative integers, Poisson was a great next step for us. We modeled observed COVID-19 deaths as:
+&nbsp;&nbsp;&nbsp;&nbsp;Since COVID-19 death counts are non-negative integers, Poisson was a great next step for us. We modeled observed COVID-19 deaths as:
 
 $$
 Y_i \sim \text{Poisson}(\lambda_i), 
@@ -128,12 +126,12 @@ Y_i \sim \text{Poisson}(\lambda_i),
 $$
 
 
-The log link ensures that the predicted count values are positive, and the offset term log(Populationi) adjusts for differences in population size so that expected deaths scale according to the state's population. Poisson regression is appropriate when the variance and mean of the count data are similar, however, COVID-19 mortality data many times has a higher variance than mean, leading to bias estimations and our consideration for a model that is a bit more flexible.
+&nbsp;&nbsp;&nbsp;&nbsp;The log link ensures that the predicted count values are positive, and the offset term log(Populationi) adjusts for differences in population size so that expected deaths scale according to the state's population. Poisson regression is appropriate when the variance and mean of the count data are similar, however, COVID-19 mortality data many times has a higher variance than mean, leading to bias estimations and our consideration for a model that is a bit more flexible.
 
 
 ## Negative Binomial Regression
 
-Due to the overdispersion in mortality rate, we implemented a Negative Binomial generalized linear model using the MASS package. This model assumes:
+&nbsp;&nbsp;&nbsp;&nbsp;Due to the overdispersion in mortality rate, we implemented a Negative Binomial generalized linear model using the MASS package. This model assumes:
 
 $$
 Y_i \sim \text{NegBin}(\mu_i, k), 
@@ -152,7 +150,7 @@ making it a more flexible model in comparison to the Poisson model. This model w
 
 ## Two-Way ANOVA and Interaction Effects
 
-To understand whether mortality differed based on age group, sex, and region, as well as understanding how these factors interacted, we conducted a Two-Way ANOVA. 
+&nbsp;&nbsp;&nbsp;&nbsp;To understand whether mortality differed based on age group, sex, and region, as well as understanding how these factors interacted, we conducted a Two-Way ANOVA. 
 $$
 Y_{ijk} = 
 \mu 
@@ -165,7 +163,7 @@ Y_{ijk} =
 + \varepsilon_{ijk}
 $$
 
-ANOVA is great for comparing group means when the outcome is continuous. Although death count is discrete, our dependent variable was mean deaths conditional on demographic subgroups, making ANOVA valid for comparison of group level means. Not only this, but the significance of the Age Group x Sex interaction supported the conclusion that mortality differences across age groups depends on sex.
+&nbsp;&nbsp;&nbsp;&nbsp;ANOVA is great for comparing group means when the outcome is continuous. Although death count is discrete, our dependent variable was mean deaths conditional on demographic subgroups, making ANOVA valid for comparison of group level means. Not only this, but the significance of the Age Group x Sex interaction supported the conclusion that mortality differences across age groups depends on sex.
 
 
 ## Spatial and Panel Data Methods
@@ -185,12 +183,14 @@ We developed a region-level panel dataset by aggregating monthly deaths and popu
 Using a combination of linear regression, Poisson and Negative Binomial linear models, ANOVA, and panel-data visualization allowed us to conduct a thorough analysis of this multidimentional dataset. We chose Poisson and Negative Binomial models since COVID-19 mortality is count-based, high skewed, and overdispersed, something that classic linear models would struggle to handle. ANOVA and visualizations helped to provide insightful subgroup comparisons. All in all, these methods aligned with our goals of quantifying differences across demographic groups, regions, and years, as well as indentifying which factors had strong influences on COVID-19 mortality between 2020 and 2023. 
 
 # Results (2 - 2.5 pages)
+- Make table of the coefficient of each of the predictors for MLR 
+- Make table for the different IRR results of both Poisson and Negative Binomial regression models 
 - Model fitting and diagnostics
 - Assumption checking (residual plots, normality tests, etc.)
-- Model comparison (if applicable)
-- Goodness-of-fit measures
+- Model comparison (AIC table, IRR table for Poisson and Neg Binomial)
 - Parameter interpretation with confidence intervals where appropriate
 - Key findings presented with visualizations
+
 
 
 # Discussion & Conclusion (0.75 - 1 page)
