@@ -60,7 +60,7 @@ execute:
 
 
 
-&nbsp;&nbsp;&nbsp;&nbsp;Our original, unaltered "Provisional COVID-19 Deaths by Sex and Age" dataset from the CDC has 138,000 rows and 16 columns. The key columns we are focusing on for this project are "Group" (whether data was measured by Month, by Year, or Total), "Year", "Month", "State", "Sex", "Age Group", and "COVID.19.Deaths". Before conducting the main exploratory analysis, we exmined the number of missing values (NA) in each of the variables of interest. We did not count the number of missing values of the "Year" and "Month" columns, as they have missing values depending on whether the respective row was measured by year or by month. Each key column had no missing values, aside from "COVID.19.Deaths", which had 39,430 rows with no value. 
+&nbsp;&nbsp;&nbsp;&nbsp;Our original, unaltered "Provisional COVID-19 Deaths by Sex and Age" (CDC, National Center for Health Statistics, 2020) dataset from the CDC has 138,000 rows and 16 columns. The key columns we are focusing on for this project are "Group" (whether data was measured by Month, by Year, or Total), "Year", "Month", "State", "Sex", "Age Group", and "COVID.19.Deaths". Before conducting the main exploratory analysis, we exmined the number of missing values (NA) in each of the variables of interest. We did not count the number of missing values of the "Year" and "Month" columns, as they have missing values depending on whether the respective row was measured by year or by month. Each key column had no missing values, aside from "COVID.19.Deaths", which had 39,430 rows with no value. 
 
 ![](../images/NAs.png){width=70%}
 
@@ -237,3 +237,22 @@ $$
 
 
 # References 
+
+1. Centers for Disease Control and Prevention. (2020). Provisional COVID-19 deaths by sex and age. National Center for Health Statistics. https://data.cdc.gov/
+
+2. United States Census Bureau. (2023). State population totals: 2020–2023. https://www.census.gov/data/tables/time-series/demo/popest/2020s-state-total.html
+
+3. Wickham, H., Averick, M., Bryan, J., Chang, W., McGowan, L. D., François, R., … & Yutani, H. (2019). Welcome to the tidyverse. Journal of Open Source Software, 4(43), 1686. https://doi.org/10.21105/joss.01686
+
+4. Grolemund, G., & Wickham, H. (2011). Dates and times made easy with lubridate. Journal of Statistical Software, 40(3), 1–25. https://doi.org/10.18637/jss.v040.i03
+
+5. Wickham, H. (2016). ggplot2: Elegant graphics for data analysis. Springer.
+
+6. Becker, R. A., Wilks, A. R., Brownrigg, R., Minka, T. P., & Deckmyn, A. (2023). maps: Draw geographical maps. R package version 3.4.2. https://CRAN.R-project.org/package=maps
+
+7. Venables, W. N., & Ripley, B. D. (2002). Modern applied statistics with S (4th ed.). Springer.
+
+8. Robinson, D., Hayes, A., & Couch, S. (2024). broom: Convert statistical analysis objects into tidy tibbles. R package version 1.0.5. https://CRAN.R-project.org/package=broom
+
+
+
