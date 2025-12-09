@@ -767,3 +767,7 @@ ggplot(
 ```
 
 #### Interpretation:
+- All regions show a clear decline in COVID-19 mortality from 2021 to 2023
+- Mortality peaked in 2021 for every region
+- The South has the highest mortality peak, while the Northeast shows the lowest overall rates
+- By 2023, mortality drops to very low levels across all regions, indicating effective vaccinations, improved treatment, and reduced severity in later variants

@@ -21,22 +21,22 @@ execute:
   # message: false
 ---
 
-# Introduction (0.75 - 1 page)
-- Research question or paper overview
-- Background and motivation (make sure to include proper citations)
-- Dataset description (source, size, key variables)
-- Study objectives
+# Introduction
 
 &nbsp;&nbsp;&nbsp;&nbsp;The COVID-19 pandemic has had dramatic and lasting effect on the United States, specifically in public health, society, and policy. Between the years of 2020 and 2023, over one million Americans have died due to COVID-19, with mortality patterns varying based on demographic groups, age, sex, region, and time frame. Being able to understand these patterns and how specific characterisitcs affected mortality rates is important in characterizing the impact of the pandemic and evaluating public health implementations to combat the virus. The purpose of this study is to analyze these mortality patterns utilizing provisional death counts provided by the Center of Disease Control (CDC) in addition to state level population estimations. Furthermore, assesing what factors played a strong role in COVID-19 death rates across the United States. 
 
 
-&nbsp;&nbsp;&nbsp;&nbsp;A series of demographics and geographic factors are known to have affected the mortality rates for COVID-19. With the help of prior research of the Center Of Disease Control (CDC) and National Center of Health Statistics (NCHS), we know that the older generation seemed to have experienced significantly higher death counts, frequency increasing with age. Additionally, studied have shown that there is a higher mortality rate in men than women, potentially hinting at differences in comorbidity, immune response, and behavioral factors. Geographic variation has also been reported, where the South and Midwest seemed to have experienced mortality rates, potentially due to differences in vaccination rates, population density, healthcare policies, and the timeline of policy implementation. 
+&nbsp;&nbsp;&nbsp;&nbsp; With the help of prior research of the CDC and National Center of Health Statistics (NCHS), we know that the older generation seemed to have experienced significantly higher death counts, frequency increasing with age. Additionally, studied have shown that there is a higher mortality rate in men than women, potentially hinting at differences in comorbidity, immune response, and behavioral factors. Geographic variation has also been reported, where the South and Midwest seemed to have experienced mortality rates, potentially due to differences in vaccination rates, population density, healthcare policies, and the timeline of policy implementation. 
 
 
+<<<<<<< HEAD
 &nbsp;&nbsp;&nbsp;&nbsp;The primary dataset used in this study is "Provisional COVID-19 Deaths by Sex and Age", provided by the CDC. This file contains key variables such as monthly and yearly death count for each U.S state from 2020 to 2023, broken down further with supporting variables such as sex and age group. The dataset contains over 138,000 observations and CDC-supressed values (NA values) in low population subgroups in efforts to preserve confidentiality and avoid systematic bias. In order to estimate comparalbe mortality rates across the states and demographics, the data wa merged with 2020-2023 state population estimates from the U.S Census. By doing this, it allowed for the creation of key variables, enabling meaningful comparisons across different states and years. In addition to this, states were also grouped into four regions: West, MidWest, South, and Northeast to help us perform by-region analysis. 
+=======
+&nbsp;&nbsp;&nbsp;&nbsp;The primary dataset used in this study is "Provisional COVID-19 Deaths by Sex and Age", provided by the CDC. This file contains key variables such as monthly and yearly death count for each U.S state from 2020 to 2023, broken down further with supporting variables such as sex and age group. The dataset contains over 100,000 observations and CDC-supressed values (NA values) in low population subgroups in efforts to preserve confidentiality and avoid systematic bias. In order to estimate compareable mortality rates across the states and demographics, the data was merged with 2020-2023 state population estimates from the U.S Census. Doing this allowed us to create key variables such as "COVID-19 deaths per 100,000 residents", enabling meaningful comparisons across different states and years. In addition, states were also grouped into four regions: West, MidWest, South, and Northeast to help aid geographic analysis. 
+>>>>>>> cd47f0a8a3266c5c6153dd18c20d4c1b345d476e
 
 
-&nbsp;&nbsp;&nbsp;&nbsp;Our study aims to focus on four main objectives. First, we aim to analyze the patters in U.S COVID-19 using detailed analysis and graphical visualizations of death rates across all months from 2020 to 2023. Second, we aim to examine demographic patterns by analyzing deaths across age groups and sex. Third, we use visualizations such as heatmaps to depict state-level variation in COVID-19 death rates. Lastly, we utilize a variety of modeling approaches such as Multiple Linear Regression, Poisson Regression, Two-Way ANOVA, amongst a few others, to quantify the effects of year, region, age group, and sex on COVID-19 mortality. Ultimately, these analyses help to provide a comprehensive understanding of factors associated with COVID-19 death rates in the United States and show how mortality has changed over the course of the pandemic. 
+&nbsp;&nbsp;&nbsp;&nbsp;Our study aims to focus on four main objectives. First, we aim to analyze the patters in U.S COVID-19 using detailed analysis and graphical visualizations of death rates across all months from 2020 to 2023. Second, we aim to examine demographic patterns by analyzing deaths across age groups and sex. Third, we used visualizations such as heatmaps to depict state-level variation in COVID-19 death rates. Lastly, we utilized a variety of modeling approaches such as Multiple Linear Regression, Poisson Regression, Two-Way ANOVA, amongst a few others, to quantify the effects of year, region, age group, and sex on COVID-19 mortality. Ultimately, these analyses help to provide a comprehensive understanding of factors associated with COVID-19 death rates in the United States and show how mortality has changed over the course of the pandemic. 
 
 
 # Exploratory Data Analysis
@@ -93,12 +93,7 @@ execute:
 
 &nbsp;&nbsp;&nbsp;&nbsp;Preliminary patterns in the data indicated that year, region, age group, and sex were important sources of variability in COVID-19 mortality. The substantial variation across states and demographic groups drove us to use modeling approaches suited for count data and population-standardization.
 
-# Methods (1 - 1.5 pages)
-- Diagram of the table join (Dane can do)
-- Statistical models used, with mathematical notation where appropriate
-    - **For regression:** specify model equation, link function, assumptions
-- Why these methods? Connect to research questions and structure of data
-- Software and key R packages used (don’t forget to ***cite*** the R packages)
+# Methods 
 
 &nbsp;&nbsp;&nbsp;&nbsp;In order to understand how COVID-19 mortality varies across time, demographics groups, and U.S regions, we used a combination of exploratory visualization and statistical modeling techniques. Each method was selected accordingly to adhere to the structure of the dataset, count based, non-normally distributed outcomes with strong demographic groupings as well as address our main reserach question regarding geographic and demographic predictors of COVID-19 mortality. We conducted this analysis in R using the following packages: tidyverse (Wickham et al., 2019) for data manipulation and visualization, lubridate (Grolemund & Wichhamm, 2011) for date handling, ggplot (Wickham, 2016) for plotting, maps for state analysis, MASS (Venables & Ripley, 2002) for Negative Binomial modeling, and broom for model diagnostics. 
 
@@ -175,22 +170,38 @@ $$
 
 ## Spatial and Panel Data Methods
 
+<<<<<<< HEAD
 We merged the CDC dataset with the U.S state polygons from the maps package to create a visualization for geographic variation in mortality rates. In order to do this, we had to standardize state names, convert populate estimates into long format, and compute yearly death rates per 100,000 residents. 
 
 We also created a region-level panel dataset by aggregating monthly deaths and population counts across states within each region. This allowed us to create a visualization depicting month-to-month trends and regional differences. We also used ggplot2 to plot mortality trajectories, dedicating a line per region, allowing for clear interpretation, comparison, and pattern analysis. 
+=======
+Choropleth Mapping
+
+&nbsp;&nbsp;&nbsp;&nbsp;We merged the CDC dataset with the U.S state polygons from the maps package to create a visualization for geographic variation in mortality rates. In order to do this, we had to standardize state names, convert populate estimates into long format, and compute yearly death rates per 100,000 residents. 
+
+
+Panel Data Time-Series Plot
+
+&nbsp;&nbsp;&nbsp;&nbsp;We developed a region-level panel dataset by aggregating monthly deaths and population counts across states within each region. This allowed us to create a visualization depicting month-to-month trends and regional differences. We also used ggplot2 to plot mortality trajectories, dedicating a line per region, allowing for clear interpretation, comparison, and pattern analysis. 
+>>>>>>> cd47f0a8a3266c5c6153dd18c20d4c1b345d476e
 
 
 ## Why These Methods
 
-Using a combination of linear regression, Poisson and Negative Binomial linear models, ANOVA, and panel-data visualization allowed us to conduct a thorough analysis of this multidimentional dataset. We chose Poisson and Negative Binomial models since COVID-19 mortality is count-based, high skewed, and overdispersed, something that classic linear models would struggle to handle. ANOVA and visualizations helped to provide insightful subgroup comparisons. All in all, these methods aligned with our goals of quantifying differences across demographic groups, regions, and years, as well as indentifying which factors had strong influences on COVID-19 mortality between 2020 and 2023. 
+&nbsp;&nbsp;&nbsp;&nbsp;Using a combination of linear regression, Poisson and Negative Binomial linear models, ANOVA, and panel-data visualization allowed us to conduct a thorough analysis of this multidimentional dataset. We chose Poisson and Negative Binomial models since COVID-19 mortality is count-based, high skewed, and overdispersed, something that classic linear models would struggle to handle. ANOVA and visualizations helped to provide insightful subgroup comparisons. All in all, these methods aligned with our goals of quantifying differences across demographic groups, regions, and years, as well as indentifying which factors had strong influences on COVID-19 mortality between 2020 and 2023. 
 
+<<<<<<< HEAD
 # Results (2 - 2.5 pages)
 
 ## Multiple linear Regression
+=======
+# Results
+>>>>>>> cd47f0a8a3266c5c6153dd18c20d4c1b345d476e
 
 
 With an adjusted R² of 0.636, our multiple linear regression model explained 63.6% of the variance in COVID-19 mortality rates. The results demonstrate that mortality did not follow a uniform national pattern but instead shifted over time and varied across demographics. Mortality rates rose above the 2020 baseline and reached their maximum in 2021, then declined quickly in 2022 and 2023. Age was the strongest predictor (both p < 0.001), as those aged 50-64 experienced rates 7.17 per 100,000 higher than baseline, while those 85+ showed rates 11.45 per 100,000 higher. States in the South had higher mortality than those in the Midwest, while the Northeast and West experienced significantly lower rates. This suggests potential regional disparities in exposure or health policies. Finally, males had consistently higher mortality than females.
 
+<<<<<<< HEAD
 <!-- ![](../images/MLR.png){width=40%} -->
 
 ::: {layout="[40, 60]"}
@@ -227,23 +238,22 @@ Finally, we plotted the interaction between Age Group and Sex across ages, as we
 ![](../images/panelPlot.png)
 :::
 # Discussion & Conclusion (0.75 - 1 page)
+=======
+# Discussion & Conclusion 
+&nbsp;&nbsp;&nbsp;&nbsp;This study examined how COVID-19 mortality varied across demographic groups, geographic regions, and time in the United States from 2020 to 2023. By combining the CDC's provisional death counts with state level population estimates, we were able to evaluate death rates per 100,000 people and use regression modeling in addition to visualizations to identify the factors strongly associated with COVID-19 mortality. Ultimately, these findings consistantly showed that age group, sex, region, and year played significant roles in shaping mortality patterns.  
 
-This study examined how COVID-19 mortality varied across demographic groups, geographic regions, and time in the United States from 2020 to 2023. By combining the CDC's provisional death counts with state level population estimates, we were able to evaluate death rates per 100,000 people and use regression modeling in addition to visualizations to identify the factors strongly associated with COVID-19 mortality. Ultimately, these findings consistantly showed that age group, sex, region, and year played significant roles in shaping mortality patterns.  
+ &nbsp;&nbsp;&nbsp;&nbsp;Mortality peaked nationally in late 2020 and early 2021, with a sharp decline in mid-2021. Age was the strongest predictor of mortality, those over the age of 75 experienced higher death rates than younger groups. Males consistantly showed to have higher mortality in comparison to females. Regionally, the South showed elevated death rates, while regions such as the Northeast had very high early mortality followed by lower rates in later years. These trends are evident in the visualizations and further backed by our statistical models.
 
+&nbsp;&nbsp;&nbsp;&nbsp;The regression models provided additional support for these finding, while the Multiple Regression model helped in identifying relationships. The Poisson model was able to capture the count based characteristics of the data, but was also able to show its strong overdispersion. The Negative Binomial model was the best fit for the data, showing that mortality decreased significantly over time, males had higher death rates compared to females, and regional differences were statisically significant. The Two-Way ANOVA further revealed that the effect of age group on mortality changed based on males and females, emphasizing the importance of demographic interactions.
 
-During our analysis, we noticed a few clear patters. Mortality peaked nationally in late 2020 and early 2021, with a sharp decline in mid-2021. Age was the strongest predictor of mortality, those over the age of 75 experienced higher death rates than younger groups. Males consistantly showed to have higher mortality in comparison to females. Regionally, the South showed elevated death rates, while regions such as the Northeast had very high early mortality followed by lower rates in later years. These trends are evident in the visualizations and further backed by our statistical models.
+&nbsp;&nbsp;&nbsp;&nbsp;All of these findings have meaningful implications for public health, for example, the strong age related disparities emphasize the importance of ensuring that older adults are protected through the aid of vaccines, boosters, and early treatment access. Being able to understand these differences can help create interventions for potential future public health emergencies. 
 
-The regression models provided a form of additional support for these finding, while the Multiple Regression model helped in identifying relationships, and diagnostic checks showed potential violations of key assumptions. The Poisson model was able to capture the count based characteristics of the data, but was also able to show its strong overdispersion. The Negative Binomial model was the best fit for the data, showing that mortality decreased significantly over time, males had higher death rates compared to females, and regional differences were statisically significant. The Two-Way ANOVA further revealed that the effect of age group on mortality changed based on males and females, emphasizing the importance of demographic interactions.
+&nbsp;&nbsp;&nbsp;&nbsp;However, something to note is that this study does have its limitations, the CDC's provitional data includes supressed values for smaller populations, making it harder to gain insight from certain states or demographic groups. Additionally, important factor such as comorbidities, vaccination rates, and socioeconomic status were not included in the dataset, while state level analysis may also hide variation within states. 
 
-All of these findings have meaningful implications for public health, for instance, the strong age related disparities emphasize the importance of ensuring that older adults are protected through the aid of vaccines, boosters, and early treatment access. Regional patters show that state-level health policy, socioeconomic factors, and healthcare capacities also influence COVID-19 mortality patterns. Being able to understand these differences can help create interventions for potential future public health emergencies. 
+&nbsp;&nbsp;&nbsp;&nbsp;In the future, we would like to use additional predictors like vaccination coverage, variant spread, or county-level data to better understand patterns. We would also like to use more advanced modeling approaches, for example, time series models, could help capture heirarchical structure more effectively. 
 
-However, something to note is that this study does have its limitations, the CDC's provitional data includes supressed values for smaller populations, making it harder to gain insight from certain states or demographic groups. Additionally, important factor such as comorbidities, vaccination rates, and socioeconomic status were not included in the dataset, while state level analysis may also hide variation within states. 
+&nbsp;&nbsp;&nbsp;&nbsp;All in all, this analysis was able to provide a clear and statistical understanding of how COVID-19 mortality varied across demographic and geographic dimensions in the United States, providing insights that may help implement preventative or early intervention health strategies in the future. 
 
-In the future, we would like to use additional predictors like vaccination coverage, variant spread, or county-level data to better understand patterns. We would also like to use more advanced modeling approaches, for example, time series models, could help capture heirarchical structure more effectively. 
+>>>>>>> cd47f0a8a3266c5c6153dd18c20d4c1b345d476e
 
-All in all, this analysis was able to provide a clear and statistical understanding of how COVID-19 mortality varied across demographic and geographic dimensions in the United States, providing insights that may help implement preventative or early intervention health strategies in the future. 
-
-
-# References (not included in page count)
-- Use consistent citation style (APA)
-- Include at least 2-3 references beyond the dataset source
+# References 
