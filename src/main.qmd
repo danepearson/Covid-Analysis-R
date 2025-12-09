@@ -23,6 +23,7 @@ execute:
 ```{r}
 library(lubridate)
 library(ggplot2)
+library(ggpubr)
 library(tidyr)
 library(maps)
 library(patchwork)
@@ -257,7 +258,7 @@ joined_df <- left_df %>%
 head(joined_df, 3)
 ```
 
-# Add a "region" column to the new joined data for by-region analysis:
+##### Add a "region" column to the new joined data for by-region analysis:
 ```{r}
 # Define the states in each region:
 west <- c(
@@ -572,13 +573,54 @@ ggplot(joined_regional_no_AllAges_df, aes(x = pred_nb, y = COVID.19.Deaths)) +
 ##### How do age, sex, and region influence mortality by each month?
 
 ```{r}
-# anova_model <- aov(
-#   COVID.19.Deaths ~ Age.Group * Sex,
-#   data = monthly_age_sex_deaths
-# )
-# summary(anova_model)
+anova_model <- aov(
+  COVID.19.Deaths ~ Age.Group * Sex * region,
+  data = joined_regional_no_AllAges_df
+)
+summary(anova_model)
 
 ```
+
+#### Interpretation:
+- Age group, sex, and region eachhave statistically significant effects on COVID-19 mortality rates in the US, as they have p-values less than the alpha level of 0.05. This means that, mortality rates differ across age groups, between sexes, across regions when averaged over the other factors.
+
+- The interaction between age group and sex is statistically significant as well since it also has a p-value less than the alpha level of 0.05. This means that the effect of age group on mortality rates depends on sex (and changes as sex changes), and vice versa. In the data this indicates that the difference in mortality rates between age groups is not consistent across sexes. Similarly, the difference in mortality rates between sexes is not consistent across age groups.
+
+- The interactions between Age Group x Region, Sex x Region, & Age Group x Sex x Region are not statistically significant. This means there is no evidence that the combined effect of those pairs (or all three together) influences mortality outside of what is already explained by the individual main effects and the interaction between Age Group × Sex.
+
+
+### Interaction plot:
+```{r}
+# Calculate means for each group
+interaction_subset <- joined_regional_no_AllAges_df %>%
+  filter(Age.Group != "Under 1 year") %>%
+  group_by(Age.Group, Sex) %>%
+  summarise(mean_deaths = mean(COVID.19.Deaths))
+
+# Create the interaction plot
+ggplot(
+  interaction_subset,
+  aes(x = Age.Group, y = mean_deaths, group = Sex, color = Sex)
+) +
+  geom_line(size = 1) +
+  geom_point(size = 3) +
+  labs(
+    title = "Interaction of Age Group & Sex",
+    x = "Age Group",
+    y = "Mean COVID-19 Deaths"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# summary(joined_regional_no_AllAges_df)
+```
+
+#### Interpretation:
+- From ages 0-44 years old, the interaction plot suggests that sex has little effect on predicted COVID-19 deaths
+- According to the plot, being male increases COVID-19 deaths much more in those aged 45-84 years old than being female, as the average COVID-19 deaths for males is much higher in that age bracket
+- After age 84, the effect of sex on predicted COVID-19 deaths reverses depending on age group, indicating an interaction between the two predictive variables 
+
+---
 
 ### Panel data plot:
 
