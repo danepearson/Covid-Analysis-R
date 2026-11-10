@@ -105,7 +105,6 @@ quarto render report/report.qmd  # written report
 
 - Incorporate vaccination rates and variant prevalence
 - Model monthly data with smooth time trends and seasonality (e.g., generalized additive models)
-- Allow state effects to vary over time (random slopes or state-by-year effects)
 - Validate imputed values against reported totals, or model suppressed counts directly with an interval-censored likelihood
 - Extend to county-level data for finer geographic resolution
 
