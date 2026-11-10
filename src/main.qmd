@@ -1,7 +1,7 @@
 ---
 title: "COVID Mortality Analysis Project"
 author: "Dane Pearson, Dhriti Avala"
-date: 12/2/2025
+date: last-modified
 format: 
   html:
     code-fold: true
@@ -17,7 +17,7 @@ execute:
 ---
 
 
-# Statistical Analysis of US COVID-19 Mortality in R:
+# Statistical Analysis of US COVID-19 Mortality Rates in R:
 
 ---
 
@@ -25,19 +25,18 @@ execute:
 ```{r}
 library(lubridate)
 library(ggplot2)
-library(ggpubr)
 library(tidyr)
-library(maps)
-library(patchwork)
+library(MASS)
+library(DHARMa)
+library(AER)
+library(glmmTMB)
+library(broom.mixed)
 library(dplyr)
+library(usmap)
+library(broom)
 
 # For formatting tables nicely
 library(knitr)
-library(flextable)
-library(modelsummary)
-library(kableExtra)
-
-
 ```
 
 
@@ -53,6 +52,9 @@ state_populations_data <- read.csv(
   stringsAsFactors = TRUE
 )
 
+# Civilian population by state, single year of age, and sex (Census Vintage 2025).
+# Lets each age-sex group's deaths be divided by THAT group's population.
+age_sex_pops_df <- read.csv("data/age_sex_state_pops.csv")
 ```
 
 
@@ -61,7 +63,7 @@ state_populations_data <- read.csv(
 ### Make summary tables of both datasets:
 ```{r}
 original_summary <- summary(original_df)
-state_pop_summary <- summary(state_populations_data)
+age_sex_pop_summary <- summary(age_sex_pops_df)
 
 kable(
   original_summary,
@@ -71,12 +73,11 @@ kable(
 )
 
 kable(
-  state_pop_summary,
-  caption = "State populations dataset summary",
+  age_sex_pop_summary,
+  caption = "Census age-sex population dataset summary",
   digits = 1,
   align = "l"
 )
-
 ```
 
 
@@ -89,8 +90,14 @@ original_df$COVID.19.Deaths <- as.numeric(gsub(
   original_df$COVID.19.Deaths
 ))
 
-# Ensure it was converted correctly
-# class(original_df$COVID.19.Deaths)
+# The CDC age labels use en dashes ("15–24 years"), not hyphens ("15-24 years").
+# Replace them so every filter in this file, written with plain hyphens, matches.
+# "\u2013" is the code for an en dash.
+original_df$Age.Group <- gsub(
+  "\u2013",
+  "-",
+  as.character(original_df$Age.Group)
+)
 ```
 
 ### Check for missing values:
@@ -118,7 +125,7 @@ kable(
 )
 ```
 
-I have chosen not to remove the missing values (NAs) in "COVID.19.Deaths" because the CDC intentionally "suppresses" (replaces with NA) populations that are too small for confidentiality purposes. I do not want to create bias in the data by removing data from smaller populations.
+We did not impute at this stage, suppressed rows are excluded from the complete-case models, this missingness is not at random, and multiple imputation addresses it later.
 
 
 ### Verify no “Month” values fall outside 1-12:
@@ -135,7 +142,7 @@ print(paste(
 ### Ensure no negative values for Covid-19 Deaths:
 
 ```{r}
-min_value <- min(original_df$COVID.19.Deaths)
+min_value <- min(original_df$COVID.19.Deaths, na.rm = TRUE) # na.rm: ignore suppressed NAs
 print(paste("Minimum value:", min_value))
 ```
 
@@ -155,21 +162,20 @@ deaths_per_month_df <- original_df %>%
     MonthDate = ymd(paste(Year, Month, "01", sep = "-"))
   )
 
-# deaths_per_month_df
 
 ggplot(data = deaths_per_month_df, aes(x = MonthDate, y = COVID.19.Deaths)) +
   geom_point() +
   geom_smooth() +
   labs(
-    title = "COVID-19 Deaths Over Time in U.S. (2020-2023)",
+    title = "COVID-19 Deaths Over Time in U.S. (2020 - September 2023)",
     x = "Time",
     y = "Covid-19 Deaths"
   ) +
-  theme_minimal()
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
-
-##### Deaths from COVID-19 spiked drastically in late 2020 and early 2021, with the death rate lowering in mid 2021 and leveling off by early 2023. By mid-2021, the US began administering booster shots, over 70% of the US had received at least one dose of the vaccine, and 60% were fully vaccinated. This could help to explain how the national death rate began declining at about the same time, since the vaccine has been an effective way to prevent covid-related hospitalizations and transmission of the virus.
+Deaths from COVID-19 spiked drastically in late 2020 and early 2021, with the death count lowering in mid 2021 and leveling off by early 2023. By September of 2021, the US began administering booster shots. This could help to explain how the national death rate began declining at about the same time, since the vaccine has been an effective way to prevent covid-related hospitalizations and transmission of the virus.
 
 
 ### Did certain months have higher average deaths across all years?
@@ -181,19 +187,17 @@ ggplot(
   aes(x = factor(Month), y = COVID.19.Deaths)
 ) +
   geom_boxplot(color = "black", fill = "royalblue", alpha = 0.3) +
-  geom_point(position = position_jitter(width = 0), alpha = 0.4) +
+  geom_point(alpha = 0.4) +
   labs(
-    title = "Distribution of Average Monthly COVID Deaths in U.S. (2020-2023)",
+    title = "Monthly COVID-19 Deaths in the U.S. by Calendar Month (2020 - September 2023)",
     x = "Month",
     y = "COVID-19 Deaths"
   ) +
-  theme_minimal()
-
-
-# summary(deaths_per_month_df)
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
-##### Based on the boxplot, we can see that the average deaths per month across all years (2020-2023) peaked in January and December. This indicates a clear pattern of there being higher death rates in colder months, suggesting that the cold weather increases likelihood and spread of the virus. This may be due to the cold and dry air helping the virus survive longer and compromising people's immune systems, in addition to people spending more time indoors in close contact, allowing it to spread more easily.
+Deaths peaked in December and January, consistent with winter surges in 2020–21 and 2022, though with only three to four years of data per month, this pattern cannot be separated from the timing of specific waves.
 
 
 ### How did deaths vary across age groups in the US?
@@ -208,7 +212,7 @@ deaths_by_ages <- original_df %>%
   ) |>
   dplyr::select(Age.Group, COVID.19.Deaths)
 
-# I realized there are overlapping age groups so I have to remove the redundant ones
+# emove the redundant and overlapping age groups
 deaths_by_ages_clean <- deaths_by_ages %>%
   filter(
     !Age.Group %in%
@@ -245,14 +249,14 @@ agg <- aggregate(COVID.19.Deaths ~ group, deaths_by_ages_clean, sum)
 pie(
   agg$COVID.19.Deaths,
   labels = agg$group,
-  main = "Total Deaths by Age Group in the U.S. (2020-2023)"
+  main = "Total Deaths by Age Group in the U.S. (2020 - September 2023)"
 )
 ```
 
 
-### Choropleth heatmap:
+### Data Preparation:
 
-##### First, we need to get the populations of each state by doing a left join of US census data on the State column of the original dataset. Below are the first few rows of each of the datasets used in the join:
+Before plotting the death rates spatially across US states, we need to get the populations of each state by doing a left join of US census data on the State column of the original dataset. Below are the first few rows of each of the datasets used in the join:
 
 ```{r}
 # Right dataset
@@ -282,52 +286,166 @@ kable(
   align = "l"
 )
 
-# Left dataset where each row is a state and its population during a year
-left_df <- original_df %>%
-  filter(
-    Group == "By Year",
-    Sex != "All Sexes",
-    # Age.Group == "All Ages"
-  ) |>
-  dplyr::select(State, Year, COVID.19.Deaths, Sex, Age.Group)
-
-head_left <- head(left_df, 3)
-
-kable(
-  head_left,
-  caption = "Original Mortality Dataset (left data)",
-  digits = 1,
-  col.names = c(
-    "State",
-    "Year",
-    "COVID-19 Deaths",
-    "Sex",
-    "Age Group"
-  ),
-  align = "l"
-)
-
-# Make the right dataset long so it has one row for each state and year pair for compatible joining
+# Total state population, one row per state-year
 state_pops_long <- state_pops_clean %>%
   pivot_longer(
     cols = starts_with("POPESTIMATE"),
     names_to = "Year",
     values_to = "Population"
   ) %>%
+  mutate(Year = as.integer(gsub("POPESTIMATE", "", Year))) # "POPESTIMATE2020" -> 2020
+
+# 11 age groups that do not overlap and together cover all ages.
+# The CDC file also has overlapping groups (e.g., "0-17 years" overlaps
+# "1-4 years" and "5-14 years"); keeping both would count deaths twice.
+age_groups_keep <- c(
+  "Under 1 year",
+  "1-4 years",
+  "5-14 years",
+  "15-24 years",
+  "25-34 years",
+  "35-44 years",
+  "45-54 years",
+  "55-64 years",
+  "65-74 years",
+  "75-84 years",
+  "85 years and over"
+)
+
+left_df <- original_df %>%
+  filter(
+    Group == "By Year", # one row per state-year-sex-age group
+    Sex != "All Sexes", # keep Male and Female only
+    Age.Group %in% age_groups_keep # drops "All Ages" and the overlapping groups
+  ) %>%
   mutate(
-    Year = as.integer(gsub("POPESTIMATE", "", Year)) # Removes "POPESTIMATE"
+    State = as.character(State), # factor -> text so joins match on names
+    Sex = as.character(Sex),
+    # CDC lists New York City separately from the rest of New York State,
+    # but the Census "New York" population includes NYC, so combine them
+    State = if_else(State == "New York City", "New York", State),
+    # parse_date_time() (lubridate) reads either "2023-09-23" or "09/23/2023"
+    start = as.Date(parse_date_time(
+      as.character(Start.Date),
+      orders = c("ymd", "mdy")
+    )),
+    end = as.Date(parse_date_time(
+      as.character(End.Date),
+      orders = c("ymd", "mdy")
+    )),
+    # Share of the year these counts cover: about 1 for 2020-2022,
+    # about 0.73 for 2023 (data end in September 2023)
+    year_fraction = (as.numeric(end - start) + 1) / 365.25
+  ) %>%
+  group_by(State, Year, Sex, Age.Group, year_fraction) %>%
+  # sum() WITHOUT na.rm: if NYC or rest-of-NY is suppressed (NA), the combined
+  # count is unknown, so it stays NA and is excluded later by drop_na()
+  summarise(COVID.19.Deaths = sum(COVID.19.Deaths), .groups = "drop")
+
+
+# Expect about 1.00 for 2020-2022, about 0.73 for 2023, and no NA
+distinct(left_df, Year, year_fraction)
+
+# Share of cells suppressed (NA) in each age group, states and DC only.
+# Used to choose a reference age group that suppression barely affects.
+suppression_by_age <- left_df %>%
+  filter(!State %in% c("United States", "Puerto Rico")) %>% # match the rows used in the models
+  mutate(Age.Group = factor(Age.Group, levels = age_groups_keep)) %>% # youngest to oldest
+  group_by(Age.Group) %>%
+  summarise(
+    share_suppressed = mean(is.na(COVID.19.Deaths)), # mean of TRUE/FALSE = proportion TRUE
+    .groups = "drop"
   )
 
-# Join the two datasets using a left join
-joined_df <- left_df %>%
-  left_join(state_pops_long, by = c("State", "Year")) %>%
-  # filter(
-  #   Age.Group == "All Ages"
-  # ) %>%
+kable(
+  suppression_by_age,
+  caption = "Share of Suppressed Cells by Age Group",
+  digits = 2,
+  col.names = c("Age Group", "Share Suppressed"),
+  align = "l"
+)
+
+head_left <- head(left_df, 3)
+
+kable(
+  head_left,
+  caption = "Processed CDC Death Counts (left data, first 3 rows)",
+  digits = 1,
+  col.names = c(
+    "State",
+    "Year",
+    "Sex",
+    "Age Group",
+    "Year Fraction",
+    "COVID-19 Deaths"
+  ),
+  align = "l"
+)
+
+# Reshape the Census file to one row per state-year-sex-age group,
+# binned into the same 11 age groups as the CDC data
+age_sex_pops_long <- age_sex_pops_df %>%
+  filter(
+    as.numeric(SUMLEV) == 40, # state rows only ("040"; 010 = nation)
+    SEX %in% c(1, 2), # 1 = Male, 2 = Female (0 = both combined)
+    AGE != 999 # 999 = all ages combined
+  ) %>%
   mutate(
-    deaths_per_100000 = (COVID.19.Deaths / Population) * 100000,
-    State = tolower(State) # state names must be lowercase for choropleth map
+    Sex = if_else(SEX == 1, "Male", "Female"),
+    # cut() bins ages into intervals closed on the right:
+    # (-Inf,0] = age 0, (0,4] = 1-4, (4,14] = 5-14, ..., (84,Inf] = 85+
+    Age.Group = as.character(cut(
+      AGE,
+      breaks = c(-Inf, 0, 4, 14, 24, 34, 44, 54, 64, 74, 84, Inf),
+      labels = age_groups_keep
+    ))
+  ) %>%
+  dplyr::select(
+    State = NAME,
+    Sex,
+    Age.Group,
+    POPEST2020_CIV,
+    POPEST2021_CIV,
+    POPEST2022_CIV,
+    POPEST2023_CIV
+  ) %>%
+  pivot_longer(
+    cols = starts_with("POPEST"),
+    names_to = "Year",
+    values_to = "Population"
+  ) %>%
+  mutate(Year = as.integer(gsub("POPEST|_CIV", "", Year))) %>% # "POPEST2020_CIV" -> 2020
+  group_by(State, Year, Sex, Age.Group) %>%
+  summarise(Population = sum(Population), .groups = "drop") # add single ages within each bin
+
+# Sanity check on the age binning: summed civilian age-sex populations should be
+# just under each state's total resident population (civilians exclude active-duty military)
+pop_check <- age_sex_pops_long %>%
+  group_by(State, Year) %>%
+  summarise(civilian = sum(Population), .groups = "drop") %>%
+  inner_join(
+    state_pops_long %>% mutate(State = as.character(State)),
+    by = c("State", "Year")
+  ) %>%
+  mutate(ratio = civilian / Population)
+
+summary(pop_check$ratio) # expect values just under 1
+pop_check %>% arrange(ratio) %>% head(5) # lowest ratios: likely states with large military populations
+
+# Join the two datasets using a left join
+# Each row's Population is now that age-sex group's population in that state-year
+joined_df <- left_df %>%
+  left_join(age_sex_pops_long, by = c("State", "Year", "Sex", "Age.Group")) %>%
+  mutate(
+    # Person-years at risk: population scaled by the share of the year covered,
+    # so partial-year 2023 is not compared against a full year of population
+    person_years = Population * year_fraction,
+    deaths_per_100000 = (COVID.19.Deaths / person_years) * 100000, # per 100,000 person-years
+    State = tolower(State) # lowercase names for the map
   )
+
+# Check: only non-states (e.g., "united states", "puerto rico") should be listed
+joined_df %>% filter(is.na(Population)) %>% distinct(State)
 
 head_joined <- head(joined_df, 3)
 
@@ -338,17 +456,19 @@ kable(
   col.names = c(
     "State",
     "Year",
-    "COVID-19 Deaths",
     "Sex",
     "Age Group",
+    "Year Fraction",
+    "COVID-19 Deaths",
     "Population",
-    "Deaths per 100,000"
+    "Person-Years",
+    "Deaths per 100,000 Person-Years"
   ),
   align = "l"
 )
 ```
 
-##### Add a "region" and death rate columns to the new joined data.
+##### Add a region column and remove territories and suppressed cells.
 ```{r}
 # Define the states in each region:
 west <- c(
@@ -414,7 +534,8 @@ northeast <- c(
   "pennsylvania"
 )
 
-# Add region column, remove rows with NA in region (for territories), and sort by year ascending
+# Add region column, drop territories (region = NA) and CDC-suppressed counts
+# (COVID.19.Deaths = NA), and sort by year ascending
 joined_regional_df <- joined_df %>%
   mutate(
     region = case_when(
@@ -429,103 +550,196 @@ joined_regional_df <- joined_df %>%
   drop_na() %>%
   arrange(Year)
 
-# head(joined_regional_df, 3)
+kable(
+  head(joined_regional_df),
+  caption = "Joined Dataset with Region and Death Rate Columns",
+  digits = 1,
+  col.names = c(
+    "State",
+    "Year",
+    "Sex",
+    "Age Group",
+    "Year Fraction",
+    "COVID-19 Deaths",
+    "Group Population",
+    "Person-Years",
+    "Deaths per 100,000 Person-Years",
+    "Region"
+  ),
+  align = "l"
+)
 ```
 
-##### Prepare subsets of the joined data by each year.
+
+### Choropleth Heatmap Plots:
+##### Finally, plot the choropleth maps for 2020 - September 2023:
 
 ```{r}
-joined_2020 <- joined_regional_df %>%
-  filter(Year == "2020")
-
-joined_2021 <- joined_regional_df %>%
-  filter(Year == "2021")
-
-joined_2022 <- joined_regional_df %>%
-  filter(Year == "2022")
-
-joined_2023 <- joined_regional_df %>%
-  filter(Year == "2023")
-```
-
-##### Finally, plot the choropleth maps for 2020-2023:
-
-```{r}
-
-# Load US map geometry
-us_map <- map_data("state")
-
-# Merge the polygon map with death rate dataframe
-plot_map_df <- us_map %>%
-  left_join(joined_df, by = c("region" = "State"))
-
-# Plot the heatmaps on a 2x2 grid by year
-ggplot(plot_map_df, aes(long, lat, group = group, fill = deaths_per_100000)) +
-  geom_polygon(color = "white", linewidth = 0.2) +
-  coord_fixed(1.3) +
-  scale_fill_viridis_c(option = "viridis") +
-  facet_wrap(~Year, ncol = 2) +
-  labs(
-    title = "COVID-19 Mortality Rates by State (per 100,000, colorblind friendly)",
-    fill = "Deaths per 100,000"
-  ) +
-  theme_minimal() +
-  theme_void() + # Remove background and axes
-  theme(
-    axis.title = element_blank(),
-    axis.text = element_blank(),
-    axis.ticks = element_blank()
+# One row per state-year (all ages, both sexes) so each state gets one color.
+map_df <- original_df %>%
+  filter(Group == "By Year", Sex == "All Sexes", Age.Group == "All Ages") %>%
+  mutate(
+    State = as.character(State),
+    State = if_else(State == "New York City", "New York", State),
+    start = as.Date(parse_date_time(
+      as.character(Start.Date),
+      orders = c("ymd", "mdy")
+    )),
+    end = as.Date(parse_date_time(
+      as.character(End.Date),
+      orders = c("ymd", "mdy")
+    )),
+    year_fraction = (as.numeric(end - start) + 1) / 365.25
+  ) %>%
+  group_by(State, Year, year_fraction) %>%
+  summarise(COVID.19.Deaths = sum(COVID.19.Deaths), .groups = "drop") %>%
+  left_join(
+    state_pops_long %>% mutate(State = as.character(State)), # total state population
+    by = c("State", "Year")
+  ) %>%
+  mutate(
+    deaths_per_100000 = COVID.19.Deaths / (Population * year_fraction) * 100000,
+    State = tolower(State)
   )
 
+# Same color scale limits for all four maps, so a given color means the same
+# rate in every year (separate plots would otherwise each get their own scale)
+rate_limits <- range(
+  map_df$deaths_per_100000[
+    !map_df$State %in% c("united states", "puerto rico")
+  ],
+  na.rm = TRUE
+)
+
+# Draws one labeled state map for a given year
+plot_rate_map <- function(year) {
+  year_df <- map_df %>%
+    filter(Year == year, !State %in% c("united states", "puerto rico")) %>%
+    mutate(state = tools::toTitleCase(State)) %>% # usmap needs a column named "state" (full name or abbreviation)
+    dplyr::select(state, deaths_per_100000)
+
+  plot_usmap(
+    data = year_df,
+    values = "deaths_per_100000", # column used for the fill color
+    labels = TRUE, # state abbreviations
+    label_color = "white"
+  ) +
+    scale_fill_viridis_c(
+      option = "viridis",
+      limits = rate_limits, # shared scale across years
+      end = 0.85, # skip the brightest yellow so white labels stay readable
+      name = "Deaths per\n100,000 Person-Years"
+    ) +
+    labs(title = paste("COVID-19 Mortality Rates by State,", year)) +
+    theme(
+      legend.position = "right",
+      plot.title = element_text(
+        size = 16, # title font size in points (the default is about 13)
+        hjust = 0.5 # center the title
+      )
+    )
+}
+
+# Builds a top-10 table of state death rates for one year
+top10_by_year <- function(year) {
+  kable(
+    map_df %>%
+      filter(
+        Year == year, # only the requested year
+        !State %in% c("united states", "puerto rico") # drop non-state rows
+      ) %>%
+      arrange(desc(deaths_per_100000)) %>% # highest rate first
+      head(10) %>% # top 10 states
+      mutate(State = tools::toTitleCase(State)) %>% # restore capitalization
+      dplyr::select(State, deaths_per_100000, COVID.19.Deaths, Population),
+    caption = paste("Top 10 States by COVID-19 Mortality Rate,", year), # e.g., "..., 2021"
+    digits = 1,
+    format.args = list(big.mark = ","),
+    col.names = c(
+      "State",
+      "Deaths per 100,000 Person-Years",
+      "COVID-19 Deaths",
+      "Population"
+    ),
+    align = "l"
+  )
+}
 ```
+
+```{r}
+#| fig-width: 11
+#| fig-height: 7.5
+plot_rate_map(2020)
+
+top10_by_year(2020)
+```
+
+```{r}
+#| fig-width: 11
+#| fig-height: 7.5
+plot_rate_map(2021)
+
+top10_by_year(2021)
+```
+
+```{r}
+#| fig-width: 11
+#| fig-height: 7.5
+plot_rate_map(2022)
+
+top10_by_year(2022)
+```
+
+```{r}
+#| fig-width: 11
+#| fig-height: 7.5
+# 2023 map covers January to September, annualized
+plot_rate_map(2023)
+
+top10_by_year(2023)
+```
+
+#### Interpretation:
+- **2020:** The highest crude mortality rates were in the Northeast (New Jersey, 195.5 per 100,000; New York, 191.0) and the Northern Plains (North Dakota, 193.7; South Dakota, 192.8), reflecting the early spring wave in the Northeast and the late-2020 surge in the Plains.
+- **2021:** High mortality rates shifted to the South, Appalachia, and the Southwest. West Virginia had the highest rate of any state in any year (220.7), followed by Mississippi, Tennessee, Oklahoma, and Arizona, while most Northeastern states were among the lowest.
+- **2022–2023:** Rates fell in every state, but the same Appalachian and South-Central states (West Virginia, Kentucky, Oklahoma, Mississippi, Tennessee) remained at the top. The 2023 rates cover January–September and are annualized.
+- **Crude vs. age-adjusted:** These maps show crude rates, which are not adjusted for age. States with older populations rank higher partly because of their age structure. For example, Florida and Vermont appear among the top 10 crude rates in some years, yet the mixed model, which adjusts for age, sex, and year, estimates both below their predicted rates (Vermont among the lowest of all states). The age-adjusted state effects in the caterpillar plot are therefore the better comparison of state-level risk.
 
 ---
 
 ## Statistical Analysis:
 
-#### *Can we predict death rates using the year, region and sex variables?*
+***How are age, sex, region, and year associated with COVID-19 mortality rates?***
 
 ### Multiple Linear Regression:
 
-<!-- ##### The dataset used for the Multiple Linear Regression has one row for each unique combination of Year × Month × State × Sex × Age Group. -->
-
-
 ```{r}
-
-# monthly_age_sex_deaths <- original_df %>%
-#   filter(Group == "By Month") %>%
-#   distinct(Year, Month, State, Sex, Age.Group, .keep_all = TRUE) %>%
-#   select(Group, Year, Month, State, Sex, Age.Group, COVID.19.Deaths)
-
-# # str(monthly_age_sex_deaths)
-
-# summary(joined_regional_df)
-
-joined_regional_no_AllAges_df <- joined_regional_df %>%
-  filter(Age.Group != "All Ages")
-# summary(joined_regional_no_AllAges_df)
+model_df <- joined_regional_df %>%
+  mutate(
+    # Youngest to oldest, so tables and plots read in order
+    Age.Group = factor(Age.Group, levels = age_groups_keep),
+    # Reference group that all other age groups are compared to
+    Age.Group = relevel(Age.Group, ref = "65-74 years"), # 3% suppressed; large, stable baseline
+    Sex = factor(Sex, levels = c("Female", "Male")) # Female = baseline, as before
+  )
 
 mlr_model <- lm(
   deaths_per_100000 ~ factor(Year) + Age.Group + region + Sex,
-  data = joined_regional_no_AllAges_df
+  data = model_df
 )
 
 summary(mlr_model)
 ```
 
-##### **Comments:**
-###### - The intercept is: Year = 0 (redundant), region = midwest, and Sex = Female
-###### - We converted the Year variable into a factor for the MLR here because COVID death rates do not decline linearly over time. Treating the years as categorical allows us to fit separate means for each year, captures non-linear year effects, and reduces the residual patterns
+**Model notes:**
 
-##### **Interpretation:**
-- The model explains about 63.6% of the variation in COVID-19 deaths per 100,000
-  - Adjusted R² = 0.636
-- COVID mortality peaked in 2021, then sharply declined in 2022–2023
-  - Mortality rates were 1.63 per 100k higher than 2020
-- All age groups below 40 years old had no statistically significant difference from the baseline age group of 0-17 years
-- The statistical sifgnificance of age group increases as age groups increase, with the 85+ age group exhibiting the highest mortality risk relative to the baseline
-- The south had significantly higher COVID mortality per 100k than all other regions
-  - States in the South are expected to have COVID-19 death rates that are about 0.66 deaths per 100,000 population higher than the Midwest, after accounting for differences in year, age group, and sex
+- The reference group (intercept) is 2020, Midwest, female, and ages 65–74.
+- Year is treated as a factor because mortality did not change linearly over time: it peaked in 2021 and then declined. A factor fits a separate mean for each year.
+
+#### **Interpretation:**
+- The model explains about `r round(100 * summary(mlr_model)$adj.r.squared)`% of the variation in mortality rates (adjusted R² = `r round(summary(mlr_model)$adj.r.squared, 3)`).
+- Coefficients are additive differences in deaths per 100,000 person-years, holding the other variables fixed. For example, adults 85 and older had `r round(coef(mlr_model)["Age.Group85 years and over"])` more deaths per 100,000 person-years than adults aged 65–74, and the South had `r round(coef(mlr_model)["regionsouth"], 1)` more than the Midwest.
+- An additive model is poorly suited to these data. Age multiplies mortality risk rather than adding a fixed amount, so the same difference cannot apply across groups whose rates differ by orders of magnitude. The diagnostics below confirm the model's assumptions are violated, which motivates the count models that follow.
 
 
 
@@ -533,25 +747,23 @@ summary(mlr_model)
 
 
 ```{r}
-library(ggplot2)
-library(broom)
-
 # Residuals vs Fitted
 # Check linearity and homoscedasticity
-ggplot(mlr_model, aes(.fitted, .resid)) +
+ggplot(augment(mlr_model), aes(.fitted, .resid)) + # add fitted values and residuals as columns
   geom_point(alpha = 0.4) +
   geom_smooth(method = "loess", se = FALSE, color = "blue") +
   geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
-  labs(title = "Residuals vs Fitted", x = "Fitted", y = "Residuals") +
-  theme_minimal()
+  labs(title = "Residuals vs. Fitted", x = "Fitted", y = "Residuals") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
-##### The Residuals vs Fitted plot demonstrates that the model clearly violates the asumption of **linearity**. By looking at the plot, we can see that the predictors (year, region, and sex) and the response variable (death rate) are not linearly related. The wavy LOESS curve demonstrates an uneven spread around the residuals = 0 line, indicating that the model is potentially overpredicting in some ranges and underpredicting in others. The assumption of **constant variance** (homoscedasticity) is also violated, exhibited by the widening funnel shape in the plot. The residuals at lower fitted values are closer together, while those at higher fitted values spread out more dramatically. This means that the variance in error grows as the predicted mortality increases.
+The Residuals vs Fitted plot demonstrates that the model clearly violates the assumption of **linearity**. By looking at the plot, we can see that the predictors (year, region, age, and sex) and the response variable (death rate) are not linearly related. The wavy LOESS curve demonstrates an uneven spread around the residuals = 0 line, indicating that the model is potentially overpredicting in some ranges and underpredicting in others. The assumption of **constant variance** (homoscedasticity) is also violated, exhibited by the widening funnel shape in the plot. The residuals at lower fitted values are closer together, while those at higher fitted values spread out more dramatically. This means that the variance in error grows as the predicted mortality increases.
 
 ```{r}
 # Q-Q Plot
 # Check normality of residuals
-ggplot(mlr_model, aes(sample = .resid)) +
+ggplot(augment(mlr_model), aes(sample = .resid)) +
   stat_qq(alpha = 0.4) +
   stat_qq_line(color = "blue") +
   labs(
@@ -559,68 +771,81 @@ ggplot(mlr_model, aes(sample = .resid)) +
     x = "Theoretical Quantiles",
     y = "Sample Quantiles"
   ) +
-  theme_minimal()
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
-##### The Q-Q plot demonstrates that the model violates the asumption of **normality of the residuals**. The points slightly deviate below the line at and below theoretical quantiles of -3, while deviating much further above the line as the quantiles increase in value. The data is light-tailed, suggesting the data may be right-skewed and the model potentially underestimating high death-rate observations.
+The Q-Q plot demonstrates that the model violates the assumption of **normality of the residuals**. The points slightly deviate below the line at and below theoretical quantiles of -3, while deviating much further above the line as the quantiles increase in value. The residuals have a heavy right tail, suggesting the data may be right-skewed and the model potentially underestimating high death-rate observations.
 
 
 ### Poisson Regression:
-##### Use Poission regression to more accurately model the COVID deaths, since our data is count data not continuous.
+Use Poisson regression to more accurately model the COVID deaths, since our data is count data not continuous.
 
 ```{r}
 poisson_regression <- glm(
-  COVID.19.Deaths ~ Sex + region + Year + Age.Group,
+  COVID.19.Deaths ~ Sex + region + factor(Year) + Age.Group, # Year as factor, as in the MLR
   family = poisson,
-  offset = log(Population), # so expected deaths scale proportionally with population
-  data = joined_regional_no_AllAges_df
+  offset = log(person_years), # group-specific person-years at risk
+  data = model_df
 )
 
 summary(poisson_regression)
 ```
 
 #### **Interpretation:**
-- The COVID-19 mortality rate for males is around 28% higher than for females
-  - IRR = exp(0.2448) ≈ 1.28
-- The Northeast had a 14% lower COVID-19 mortality rate than in the Midwest
-  - IRR = exp(−0.1501) ≈ 0.86
-- The South had a 10% higher COVID-19 mortality rate than the Midwest
-  - IRR = exp(0.0938) ≈ 1.10
-- The West had a 16% lower mortality rate than the Midwest
-  - IRR = exp(−0.1707) ≈ 0.84
-- Each additional year predicts a 35% decrease in the COVID-19 mortality rate
-  - IRR = exp(−0.4322) ≈ 0.65
-- Older adults showed much higher COVID-19 mortality rates, with the 85+ group having a more than 150 times higher death rate than 0-17 year olds
-- Overall, COVID-19 mortality rates grow with age, which is the strongest predictor of death in our Poisson regression model
+The Poisson model serves as the baseline count model. Before interpreting the results, it is important to note that the residual deviance (135,113) is much larger than the degrees of freedom (3,334), signaling overdispersion. 
+
+### Checking for Overdispersion:
+##### Does the Poisson assumption (variance = mean) hold?
+
+```{r}
+# Pearson residuals: (observed - fitted) / sqrt(fitted), i.e., scaled by the Poisson SD
+pearson_chi2 <- sum(residuals(poisson_regression, type = "pearson")^2)
+
+# Residual degrees of freedom: number of rows minus number of estimated coefficients
+resid_df <- df.residual(poisson_regression)
+
+# About 1 if the Poisson variance assumption holds; much larger means overdispersion
+dispersion_ratio <- pearson_chi2 / resid_df
+
+# Cameron-Trivedi test. H0: Var(Y) = mu (Poisson). H1: Var(Y) = mu + alpha * mu^2,
+# the variance form of the negative binomial model (trafo = 2 = quadratic)
+ct_test <- dispersiontest(poisson_regression, trafo = 2)
+ct_test
+```
+
+#### Interpretation:
+- The Pearson dispersion ratio is `r round(dispersion_ratio, 1)`: the variance of the death counts is about `r round(dispersion_ratio)` times what the Poisson model assumes. A ratio near 1 would be consistent with a Poisson model.
+- The Cameron–Trivedi test rejects equidispersion in favor of a quadratic variance function, Var(Y) = μ + αμ² (estimated α = `r signif(ct_test$estimate, 3)`, p `r format.pval(ct_test$p.value, digits = 2, eps = 0.001)`). This is the variance structure of the negative binomial model, so we fit that model next.
+- Because of this overdispersion, the Poisson model's standard errors are far too small, so we do not interpret its coefficients further.
 
 
 ### Negative Binomial Regression:
 
 ```{r}
-library(MASS)
 
-# define model, using population as offset to scale porportionally
+# Define model, using person-years as offset to scale proportionally
 neg_binomial_regression <- glm.nb(
-  COVID.19.Deaths ~ Sex + region + Year + Age.Group + offset(log(Population)),
-  data = joined_regional_no_AllAges_df
+  COVID.19.Deaths ~ Sex +
+    region +
+    factor(Year) +
+    Age.Group +
+    offset(log(person_years)),
+  data = model_df
 )
 
 summary(neg_binomial_regression)
+
+neg_binomial_regression$converged # should be TRUE; FALSE means the estimates can't be trusted
+neg_binomial_regression$theta # estimated dispersion parameter k
 ```
 
 #### **Interpretation:**
-- Male COVID-19 mortality rates are about 37% higher than female mortality rates
-  - IRR = exp(0.31441) ≈ 1.37
-- The northeast had ~24% lower mortality rates than the midwest 
-  - IRR = exp(−0.27157) ≈ 0.76
-- The south had ~36% higher mortality rates than the midwest
-  - exp(0.30610) ≈ 1.36
-- The west had ~4% higher mortality rates than the midwest
-  - exp(-1.707e-01) ≈ 0.84
-- Each additional year predicts a 44% decrease in mortality rates
-  - exp(−0.58368) ≈ 0.56
-- The 85+ year old group had a more than 190 times higher death rate than 0-17 year olds
-- Similarly to the Poisson regression model, the Negative Binomial regression model predicts that COVID-19 mortality rates increase with age
+- **Fit:** The model converged (θ = 5.64, SE = 0.17), confirming substantial overdispersion. Its AIC (28,997) was far below the Poisson model’s (152,342).
+- **Sex:** Males had a 54% higher adjusted mortality rate than females (RR = 1.54; 95% CI: 1.49–1.59).
+- **Region:** Compared with the Midwest, rates were 27% higher in the South (RR = 1.27; 1.22–1.33) and 14% lower in the Northeast (RR = 0.86; 0.82–0.91). The West did not differ meaningfully (RR = 0.96; 0.91–1.01).
+- **Year:** Relative to 2020, rates peaked in 2021 (RR = 1.60; 1.53–1.68), then fell in 2022 (RR = 0.73; 0.70–0.77) and 2023 (RR = 0.18; 0.17–0.19; January–September, annualized).
+- **Age:** Age was the strongest predictor. Relative to ages 65–74, rates were 2.7 times as high at ages 75–84 (RR = 2.65; 2.50–2.81) and 8.5 times as high at 85+ (RR = 8.50; 8.01–9.02). Rate ratios under age 45 were below 0.10, but these are the least reliable estimates because of CDC suppression.
 
 
 ### Compare Poisson vs Negative Binomial Regression:
@@ -629,21 +854,20 @@ aic <- AIC(poisson_regression, neg_binomial_regression)
 kable(aic, caption = "AIC Results", digits = 1, align = "lcr")
 ```
 
-##### The AIC (Akaike Information Criterion) comparison table comfirms that the Negative Binomial regression model performs better than poisson regression in predicting COVID mortality rates. The negative binomial regression model has a much lower AIC value of 44,747.3 compared to that of the Poisson Regression model (480,266.0). This demonstrates that the Negative Binomial approach exhibits a lower estimated prediction error and therefore better fits the mortality data. 
+- The negative binomial model had a much lower AIC than the Poisson model (28,996.7 vs. 152,341.9), a difference of more than 123,000. That’s overwhelming support for the negative binomial model.
+- The negative binomial model estimates only one additional parameter, the dispersion parameter θ (19 vs. 18). The large improvement in fit therefore comes from modeling the extra variability in the death counts, not from added complexity.
+- This agrees with the overdispersion test: the Poisson assumption that variance equals the mean doesn’t hold for these data.
 
 
 ```{r}
-# exp(cbind(
-#   IRR = coef(neg_binomial_regression),
-#   confint(neg_binomial_regression)
-# ))
+# Copy of the modeling data with predictions added, so the data the models
+# use (model_df) stays unchanged
+pred_df <- model_df %>%
+  mutate(
+    pred_nb = predict(neg_binomial_regression, type = "response") # predicted death counts
+  )
 
-joined_regional_no_AllAges_df$pred_nb <- predict(
-  neg_binomial_regression,
-  type = "response"
-)
-
-ggplot(joined_regional_no_AllAges_df, aes(x = pred_nb, y = COVID.19.Deaths)) +
+ggplot(pred_df, aes(x = pred_nb, y = COVID.19.Deaths)) +
   geom_point(alpha = 0.4) +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "blue") +
   labs(
@@ -651,94 +875,625 @@ ggplot(joined_regional_no_AllAges_df, aes(x = pred_nb, y = COVID.19.Deaths)) +
     x = "Predicted Deaths",
     y = "Observed Deaths"
   ) +
-  theme_minimal()
-
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
-##### The Observed vs Predicted COVID Deaths plot shows that the Negative Binomial Regression model is both underpredicting and overpredicting covid deaths. Notably, the fan-shaped pattern indicates that the model's prediction accuracy lessens as the number of deaths increase. Despite this, the model does a decent job of predicting the number of COVID deaths when the observed deaths are below about 60,000.
+- Observed and predicted deaths agree most closely in the lower range of the data. The increasing spread at higher predicted values is consistent with the negative binomial variance function, in which variability grows with the mean.
+- The largest predicted counts are systematically overestimated, and several cells exceed their predictions substantially. This suggests state-level variation that region alone does not capture, which motivates the mixed model with state random effects.
 
----
 
-### Two-way ANOVA:
-##### How do age, sex, and region influence mortality by each month?
+### Residual Diagnostics (DHARMa):
+##### Does the negative binomial model fit the data adequately?
 
 ```{r}
-anova_model <- aov(
-  COVID.19.Deaths ~ Age.Group * Sex * region,
-  data = joined_regional_no_AllAges_df
+# Simulate 1,000 datasets from the fitted model. For each observation, the scaled
+# residual is the percentile of the observed count among its simulated values.
+# If the model is correct, these residuals are uniformly distributed between 0 and 1.
+nb_sim <- simulateResiduals(neg_binomial_regression, n = 1000, seed = 204) # seed to keep it reproducible
+
+# Left: Q-Q plot against the uniform distribution, with tests for uniformity (KS), dispersion, and outliers.
+# Right: scaled residuals vs. predicted values; lines should be flat at 0.25, 0.5, 0.75.
+plot(nb_sim)
+
+# Is there still more (or less) variation than the negative binomial model expects?
+testDispersion(nb_sim)
+
+# Are there more zero-death cells than the model predicts?
+testZeroInflation(nb_sim)
+```
+
+```{r}
+# Residuals by age group: each box should be centered around 0.5 if the model
+# fits equally well across ages
+plotResiduals(nb_sim, form = model_df$Age.Group)
+```
+
+```{r}
+# Group residuals by state: if some states are consistently above or below their
+# predictions, the state-level residuals will be overdispersed. That would mean
+# there is state-level variation the model does not account for.
+nb_sim_state <- recalculateResiduals(
+  nb_sim,
+  group = model_df$State
 )
-summary(anova_model)
-anova_summary <- summary(anova_model)
+testDispersion(nb_sim_state)
+```
 
-# apa.aov.table(lm_output = anova_model, filename = "anova_table.rtf") # Exports to RTF, can be converted to PDF
+#### DHARMa Interpretation:
+- Simulation-based residuals (DHARMa) indicate adequate overall fit. The Q-Q plot closely follows the expected uniform distribution, and the dispersion test shows no remaining overdispersion (ratio = 0.84, p = 0.31). The significant KS test reflects small deviations detectable at this sample size.
+- Residuals plotted against predicted values are close to uniform across most of the prediction range. The clear exception is cells with small predicted counts, where observed values are concentrated at zero and above 10. This pattern is consistent with CDC suppression of counts from 1 to 9, which removes the intermediate values from exactly these cells. A few cells with large predicted counts fall below all simulated values, consistent with state-level variation not captured by region.
+- The model underpredicts zero-death cells (850 observed vs. about 680 expected; ratio = 1.25). This likely reflects CDC suppression, which removes counts of 1–9 while keeping zeros, rather than true zero inflation. We address it through multiple imputation of suppressed counts rather than a zero-inflated model.
+- Residuals vary by age group: deaths are overpredicted at ages 15–54, where suppression is heaviest, and older groups show less variability than the model assumes.
+- Residuals aggregated by state are strongly overdispersed (ratio = 5.75, p < 0.001), indicating state-level variation that region does not capture. We address this with a mixed model including state random intercepts.
 
-# anova_df <- as.data.frame(summary(anova_model)[[1]])
 
-# kable(
-#   anova_df,
-#   format = "latex",
-#   booktabs = TRUE,
-#   caption = "ANOVA Results for COVID-19 Mortality Model",
-#   digits = 3
-# ) %>%
-#   kable_styling(
-#     latex_options = c("hold_position", "striped")
-#   )
+### Negative Binomial Mixed Model (State Random Intercepts):
+##### Does accounting for state-level variation change the estimates?
 
+```{r}
+# Same negative binomial model, plus a random intercept for each state.
+# nbinom2 = the same variance form as glm.nb: Var(Y) = mu + mu^2 / theta
+nb_mixed <- glmmTMB(
+  COVID.19.Deaths ~ Sex +
+    region +
+    factor(Year) +
+    Age.Group +
+    offset(log(person_years)) +
+    (1 | State), # random intercept: each state gets its own baseline shift u_j
+  family = nbinom2,
+  data = model_df
+)
+
+summary(nb_mixed)
+
+# Convergence checks (warnings are hidden in this document, so check explicitly)
+nb_mixed$fit$convergence == 0 # TRUE = optimizer converged
+nb_mixed$sdr$pdHess # TRUE = standard errors are reliable
+
+# Between-state standard deviation (sigma) on the log-rate scale
+sigma_state <- sqrt(VarCorr(nb_mixed)$cond$State[1])
+```
+
+```{r}
+# How much do standard errors change once state-level correlation is modeled?
+se_nb <- summary(neg_binomial_regression)$coefficients[, "Std. Error"]
+se_mixed <- summary(nb_mixed)$coefficients$cond[, "Std. Error"]
+key_terms <- c(
+  "SexMale",
+  "regionnortheast",
+  "regionsouth",
+  "regionwest",
+  "factor(Year)2021",
+  "factor(Year)2022",
+  "factor(Year)2023"
+)
+
+kable(
+  data.frame(
+    Term = key_terms,
+    SE_NB = se_nb[key_terms],
+    SE_Mixed = se_mixed[key_terms],
+    Ratio = se_mixed[key_terms] / se_nb[key_terms] # > 1 means the plain NB model was overconfident
+  ),
+  caption = "Standard Errors: Negative Binomial vs. Mixed Model",
+  digits = 3,
+  col.names = c("Term", "SE (NB)", "SE (Mixed)", "Ratio (Mixed / NB)"),
+  row.names = FALSE,
+  align = "l"
+)
+
+# Model comparison: both are fit by maximum likelihood, so AICs are comparable
+kable(
+  AIC(neg_binomial_regression, nb_mixed),
+  caption = "AIC: NB vs. Mixed Model",
+  digits = 1
+)
+```
+
+```{r}
+#| fig-height: 9
+# Caterpillar plot: each state's estimated random effect (empirical Bayes estimate),
+# exponentiated to a rate multiplier, with 95% intervals
+state_effects <- tidy(nb_mixed, effects = "ran_vals", conf.int = TRUE) %>%
+  mutate(
+    State = tools::toTitleCase(level),
+    multiplier = exp(estimate), # e.g., 1.22 = 22% higher than predicted for its region
+    low = exp(conf.low),
+    high = exp(conf.high)
+  )
+
+ggplot(state_effects, aes(x = multiplier, y = reorder(State, multiplier))) +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "gray50") + # 1 = no difference from prediction
+  geom_errorbar(aes(xmin = low, xmax = high), width = 0, orientation = "y") +
+  geom_point() +
+  scale_x_log10() +
+  labs(
+    title = "State Random Effects (Empirical Bayes Estimates)",
+    x = "Rate multiplier relative to model prediction (log scale)",
+    y = NULL
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+# Rerun the DHARMa diagnostics on the mixed model; the state-grouped dispersion
+# should now be close to 1 if the random effects captured the state-level variation
+mixed_sim <- simulateResiduals(nb_mixed, n = 1000, seed = 204)
+plot(mixed_sim)
+mixed_sim_state <- recalculateResiduals(
+  mixed_sim,
+  group = model_df$State
+)
+testDispersion(mixed_sim_state)
 ```
 
 #### Interpretation:
-- Age group, sex, and region eachhave statistically significant effects on COVID-19 mortality rates in the US, as they have p-values less than the alpha level of 0.05. This means that, mortality rates differ across age groups, between sexes, across regions when averaged over the other factors.
+- **State variation:** States differed substantially beyond what region, age, sex, and year explain (between-state SD = 0.23 on the log-rate scale). About 95% of states had mortality rates between 0.64 and 1.57 times their predicted rate.
+- **Model fit:** Adding state random intercepts reduced AIC by 603 (28,996.7 to 28,393.7) for one additional parameter. The negative binomial dispersion parameter increased from 5.64 to 7.78, indicating that part of the overdispersion in the fixed-effects model reflected systematic state differences.
+- **Standard errors:** Region standard errors increased about 3.8-fold because region varies only between states, so the fixed-effects model overstated the precision of regional comparisons. Sex and year standard errors decreased slightly (about 13%) because these comparisons are made within states.
+- **Region:** With correct uncertainty, the South had higher mortality than the Midwest (RR = 1.26; 95% CI: 1.06–1.50), the Northeast had marginally lower mortality (RR = 0.81; 0.66–0.99), and the West did not differ (RR = 0.90; 0.75–1.09).
+- **Other effects:** Estimates for sex (RR = 1.54; 1.50–1.59), year (2021 vs. 2020 RR = 1.63; 1.57–1.70), and age (85+ vs. 65–74 RR = 8.70; 8.26–9.16) were nearly unchanged from the fixed-effects model.
+- **State effects (empirical Bayes):** The state estimates are shrunk toward the overall mean, with more shrinkage for states contributing less information (smaller populations, more suppressed cells). New Mexico, Arizona, and Mississippi had the highest mortality relative to prediction, and Hawaii, Vermont, and Virginia the lowest. States within the same region differed widely (e.g., New Mexico and Hawaii, both in the West), showing that region is too coarse to capture geographic variation.
+- **Diagnostics:** Residuals grouped by state are no longer overdispersed (dispersion = 1.13, p = 0.55, compared with 5.75 before), confirming that the random intercepts capture the state-level variation. The remaining misfit among cells with small predicted counts reflects CDC suppression, addressed next through multiple imputation.
 
-- The interaction between age group and sex is statistically significant as well since it also has a p-value less than the alpha level of 0.05. This means that the effect of age group on mortality rates depends on sex (and changes as sex changes), and vice versa. In the data this indicates that the difference in mortality rates between age groups is not consistent across sexes. Similarly, the difference in mortality rates between sexes is not consistent across age groups.
+---
 
-- The interactions between Age Group x Region, Sex x Region, & Age Group x Sex x Region are not statistically significant. This means there is no evidence that the combined effect of those pairs (or all three together) influences mortality outside of what is already explained by the individual main effects and the interaction between Age Group × Sex.
+### Multiple Imputation of Suppressed Counts:
+##### Do the results change when suppressed counts (1–9 deaths) are imputed rather than excluded?
+
+```{r Multiple-Imputation}
+# 1. All cells with a known region and population, INCLUDING suppressed (NA) counts
+# Same factor setup as the modeling data, so coefficient names match
+full_df <- joined_df %>%
+  mutate(
+    region = factor(case_when(
+      State %in% west ~ "west",
+      State %in% midwest ~ "midwest",
+      State %in% south ~ "south",
+      State %in% northeast ~ "northeast"
+    ))
+  ) %>%
+  filter(!is.na(region), !is.na(person_years)) %>% # keeps suppressed rows, drops territories
+  mutate(
+    Age.Group = relevel(
+      factor(Age.Group, levels = age_groups_keep),
+      ref = "65-74 years"
+    ),
+    Sex = factor(Sex, levels = c("Female", "Male")),
+    suppressed = is.na(COVID.19.Deaths) # TRUE = suppressed (1-9 deaths)
+  )
+
+# Number of cells to impute
+n_suppressed <- sum(full_df$suppressed)
+
+# 2. Pieces of the fitted mixed model used to generate imputations
+beta_hat <- fixef(nb_mixed)$cond # fixed-effect estimates
+V_beta <- vcov(nb_mixed)$cond # their covariance matrix (estimation uncertainty)
+theta_hat <- sigma(nb_mixed) # NB dispersion parameter (theta) for nbinom2
+state_re <- ranef(nb_mixed)$cond$State # each state's random effect (empirical Bayes estimate)
+
+# Dataframe of only the suppressed death count rows
+suppressed_df <- full_df %>% filter(suppressed)
+
+# Design matrix: one row per suppressed cell, one column per fixed-effect coefficient
+X_suppressed <- model.matrix(
+  ~ Sex + region + factor(Year) + Age.Group,
+  data = suppressed_df
+)[, names(beta_hat)]
+u_suppressed <- state_re[suppressed_df$State, "(Intercept)"] # match each cell to its state's random effect
+```
+
+```{r Impute}
+# 3. Impute m = 40 times, refit the mixed model each time
+m <- 40
+set.seed(204)
+mi_fits <- vector("list", m) # Empty list with 20 elements
+
+# Imputation step
+for (i in 1:m) {
+  # Draw a plausible coefficient vector from its sampling distribution
+  beta_star <- mvrnorm(1, mu = beta_hat, Sigma = V_beta)
+
+  # Predicted mean deaths for each suppressed cell under the drawn coefficients
+  mu_suppressed <- as.vector(exp(
+    X_suppressed %*% beta_star + u_suppressed + log(suppressed_df$person_years)
+  ))
+
+  # Draw each suppressed count from the NB distribution restricted to 1-9:
+  # probabilities of 1, 2, ..., 9 under the model, rescaled to sum to 1 (sample() does the rescaling)
+  imputed <- sapply(mu_suppressed, function(mu_i) {
+    sample(1:9, size = 1, prob = dnbinom(1:9, size = theta_hat, mu = mu_i))
+  })
+
+  # Add the imputed values into the full dataframe (a copy of it)
+  completed <- full_df
+  completed$COVID.19.Deaths[completed$suppressed] <- imputed # same row order as suppressed_df
+
+  # Refit the statistical model using the completed data
+  mi_fits[[i]] <- glmmTMB(
+    COVID.19.Deaths ~ Sex +
+      region +
+      factor(Year) +
+      Age.Group +
+      offset(log(person_years)) +
+      (1 | State),
+    family = nbinom2,
+    data = completed
+  )
+}
+```
+
+```{r Inspect 40th impute version table}
+# Show only the cells that were suppressed, with their imputed values.
+# This table only shows the imputed values after the 40th imputation run
+completed %>%
+  filter(suppressed) %>% # keep only the previously suppressed cells
+  dplyr::select(State, Year, Sex, Age.Group, person_years, COVID.19.Deaths) %>%
+  head(15) %>%
+  kable(
+    caption = paste0("Example Imputed Values (Imputation ", m, " of ", m, ")"),
+    digits = 1,
+    col.names = c(
+      "State",
+      "Year",
+      "Sex",
+      "Age Group",
+      "Person-Years",
+      "Imputed Deaths"
+    ),
+    align = "l"
+  )
+```
+
+```{r}
+# 4. Pool the 40 fits with Rubin's rules
+est <- sapply(mi_fits, function(f) fixef(f)$cond) # coefficients: one column per imputation. the 40 different estimates of each regression coefficient
+wvar <- sapply(mi_fits, function(f) diag(vcov(f)$cond)) # squared SEs: one column per imputation. estimated variance of each coefficient from each fitted model
+
+Q_bar <- rowMeans(est) # pooled estimate
+U_bar <- rowMeans(wvar) # within-imputation variance
+B <- apply(est, 1, var) # between-imputation variance
+T_var <- U_bar + (1 + 1 / m) * B # total variance
+se_pooled <- sqrt(T_var)
+
+# Rubin's degrees of freedom and fraction of missing information
+df_rubin <- (m - 1) * (1 + U_bar / ((1 + 1 / m) * B))^2
+fmi <- (1 + 1 / m) * B / T_var
+t_crit <- qt(0.975, df_rubin)
+
+# Complete-case results (the mixed model fit without suppressed cells), for comparison
+cc_est <- fixef(nb_mixed)$cond
+cc_se <- sqrt(diag(vcov(nb_mixed)$cond))
+
+# Formats numbers to 3 significant digits without scientific notation,
+# so tiny rate ratios show as 0.000421 instead of 0.000
+fmt3 <- function(x) formatC(x, format = "fg", digits = 3)
+
+mi_compare <- data.frame(
+  Term = names(Q_bar),
+  RR_CC = fmt3(exp(cc_est)),
+  CI_CC = paste0(
+    fmt3(exp(cc_est - 1.96 * cc_se)),
+    "–",
+    fmt3(exp(cc_est + 1.96 * cc_se))
+  ),
+  RR_MI = fmt3(exp(Q_bar)),
+  CI_MI = paste0(
+    fmt3(exp(Q_bar - t_crit * se_pooled)),
+    "–",
+    fmt3(exp(Q_bar + t_crit * se_pooled))
+  ),
+  FMI = round(fmi, 3)
+) %>%
+  filter(Term != "(Intercept)")
+
+kable(
+  mi_compare,
+  caption = paste0(
+    "Mixed Model Rate Ratios: Complete Cases vs. Multiple Imputation (",
+    n_suppressed,
+    " suppressed cells imputed, m = ",
+    m,
+    ")"
+  ),
+  col.names = c(
+    "Term",
+    "RR (complete cases)",
+    "95% CI",
+    "RR (imputed)",
+    "95% CI",
+    "Fraction missing info"
+  ),
+  row.names = FALSE,
+  align = "l"
+)
+
+# Term groups used in the interpretation text below
+young_terms <- c(
+  "Age.GroupUnder 1 year",
+  "Age.Group1-4 years",
+  "Age.Group5-14 years",
+  "Age.Group15-24 years"
+)
+robust_terms <- c(
+  "SexMale",
+  "regionnortheast",
+  "regionsouth",
+  "regionwest",
+  "Age.Group45-54 years",
+  "Age.Group55-64 years",
+  "Age.Group75-84 years",
+  "Age.Group85 years and over"
+)
+```
+
+#### Interpretation:
+- We imputed `r n_suppressed` suppressed cells (`r round(100 * n_suppressed / nrow(full_df))`% of all state-year-sex-age cells) from the mixed model's predicted distribution restricted to 1–9 deaths, refit the model on each of `r m` completed datasets, and pooled the results with Rubin's rules.
+- The imputation model was fit to the complete cases, with the state random effects and dispersion parameter held at their estimates. It assumes the model's distribution, restricted to 1–9 deaths, reasonably describes the suppressed values.
+- Estimates for sex, region, and ages 45 and older were essentially unchanged (fraction of missing information at most `r round(100 * max(fmi[robust_terms]), 1)`%), so these conclusions are robust to suppression.
+- Year estimates shifted slightly (2021 vs. 2020 RR: `r fmt3(exp(cc_est["factor(Year)2021"]))` with complete cases vs. `r fmt3(exp(Q_bar["factor(Year)2021"]))` with imputation), but the pattern of a 2021 peak and a steep decline by 2023 was unchanged.
+- Suppression meaningfully affected the youngest age groups (fraction of missing information `r round(100 * min(fmi[young_terms]))`–`r round(100 * max(fmi[young_terms]))`% for ages under 25). Complete-case estimates were too low for children under 15, whose remaining cells were mostly zeros, and slightly too high for young and middle-aged adults, whose remaining cells were mostly counts of 10 or more. The direction of suppression bias therefore depends on which values survive suppression in each group.
+
+
+### Rate ratios with confidence intervals and a forest plot:
+#### How do the final rate ratios compare with and without imputation?
+```{r Prep data for forest plot} 
+# Readable labels for each coefficient (reference groups in parentheses)
+term_labels <- c(
+  "SexMale" = "Male (vs. female)",
+  "regionnortheast" = "Northeast (vs. Midwest)",
+  "regionsouth" = "South (vs. Midwest)",
+  "regionwest" = "West (vs. Midwest)",
+  "factor(Year)2021" = "2021 (vs. 2020)",
+  "factor(Year)2022" = "2022 (vs. 2020)",
+  "factor(Year)2023" = "2023 (vs. 2020)",
+  "Age.GroupUnder 1 year" = "Under 1",
+  "Age.Group1-4 years" = "1–4",
+  "Age.Group5-14 years" = "5–14",
+  "Age.Group15-24 years" = "15–24",
+  "Age.Group25-34 years" = "25–34",
+  "Age.Group35-44 years" = "35–44",
+  "Age.Group45-54 years" = "45–54",
+  "Age.Group55-64 years" = "55–64",
+  "Age.Group75-84 years" = "75–84",
+  "Age.Group85 years and over" = "85+"
+)
+
+# One row per term per method, on the log scale first, then exponentiated
+forest_df <- bind_rows(
+  data.frame(
+    term = names(cc_est),
+    estimate = cc_est,
+    low = cc_est - 1.96 * cc_se,
+    high = cc_est + 1.96 * cc_se, # Wald 95% CI
+    method = "Complete cases"
+  ),
+  data.frame(
+    term = names(Q_bar),
+    estimate = Q_bar,
+    low = Q_bar - t_crit * se_pooled,
+    high = Q_bar + t_crit * se_pooled, # Rubin's rules 95% CI
+    method = "Multiple imputation"
+  )
+) %>%
+  filter(term != "(Intercept)") %>%
+  mutate(
+    across(c(estimate, low, high), exp), # log rate ratios -> rate ratios
+    label = term_labels[term],
+    panel = if_else(
+      startsWith(term, "Age.Group"),
+      "Age group (vs. 65–74)",
+      "Sex, region, and year"
+    )
+  )
+
+rownames(forest_df) <- NULL
+
+kable(
+  forest_df %>%
+    arrange(match(label, term_labels), method) %>% # order rows as listed in term_labels
+    dplyr::select(label, method, estimate, low, high) %>%
+    mutate(across(
+      c(estimate, low, high),
+      ~ formatC(.x, format = "fg", digits = 3)
+    )), # 3 significant digits, no scientific notation
+  col.names = c(
+    "Comparison",
+    "Method",
+    "Rate Ratio",
+    "95% CI Lower",
+    "95% CI Upper"
+  ),
+  align = "l",
+  caption = "Rate Ratios and 95% Confidence Intervals: Complete Cases vs. Multiple Imputation"
+)
+```
+
+```{r Make forest plot}
+#| fig-width: 9
+#| fig-height: 11
+forest_df <- forest_df %>%
+  mutate(
+    label = factor(label, levels = rev(unname(term_labels))), # top-to-bottom order
+    panel = factor(
+      panel,
+      levels = c(
+        "Sex, region, and year", # this panel first
+        "Age group (vs. 65–74)"
+      )
+    )
+  )
+
+ggplot(forest_df, aes(x = estimate, y = label, color = method)) +
+  geom_vline(xintercept = 1, linetype = "dashed", color = "gray50") +
+  geom_pointrange(
+    aes(xmin = low, xmax = high),
+    position = position_dodge(width = 0.6, orientation = "y"),
+    orientation = "y",
+    size = 0.4
+  ) +
+  scale_x_log10(
+    breaks = c(0.001, 0.01, 0.1, 0.2, 0.5, 1, 2, 5, 10), # each panel shows the ones in its range
+    labels = function(x) format(x, scientific = FALSE, drop0trailing = TRUE) # 0.001, not 1e-03
+  ) +
+  facet_wrap(~panel, ncol = 1, scales = "free") +
+  labs(
+    title = "Adjusted COVID-19 Mortality Rate Ratios",
+    subtitle = "Negative binomial mixed model with state random intercepts",
+    x = "Rate ratio (log scale)",
+    y = NULL,
+    color = NULL,
+    caption = "Points are rate ratios; lines are 95% confidence intervals.\nReference groups: female, Midwest, 2020, ages 65–74."
+  ) +
+  theme_minimal(base_size = 13) + # larger text throughout
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5),
+    strip.text = element_text(size = 13, face = "bold"), # panel titles
+    panel.spacing = unit(1.5, "lines") # more space between panels
+  )
+```
+
+```{r}
+# Formats the imputed rate ratio and 95% CI for one term, like "1.53 (95% CI: 1.49–1.58)"
+rr_text <- function(term_name, digits = 2) {
+  row <- forest_df %>%
+    filter(term == term_name, method == "Multiple imputation")
+  fmt <- paste0("%.", digits, "f (95%% CI: %.", digits, "f–%.", digits, "f)") # %% prints a literal %
+  sprintf(fmt, row$estimate, row$low, row$high)
+}
+```
+
+#### Interpretation:
+- **Age** was by far the strongest predictor, with mortality rising steeply and steadily with age. Compared with ages 65–74, rates were `r rr_text("Age.Group75-84 years")` times as high at ages 75–84 and `r rr_text("Age.Group85 years and over")` times as high at 85+.
+- **Sex:** Males had higher mortality than females of the same age, region, and year (RR = `r rr_text("SexMale")`).
+- **Region:** The South had higher mortality than the Midwest (RR = `r rr_text("regionsouth")`), the Northeast had lower mortality (RR = `r rr_text("regionnortheast")`), and the West did not clearly differ (RR = `r rr_text("regionwest")`). Region intervals are the widest because only 51 states inform them.
+- **Year:** Mortality peaked in 2021 (RR = `r rr_text("factor(Year)2021")` vs. 2020) and fell sharply by 2023 (RR = `r rr_text("factor(Year)2023")`; January–September, annualized).
+- **Effect of imputation:** Complete-case and imputed estimates were nearly identical for sex, region, year, and ages 15 and older. For children under 15, the complete-case analysis underestimated mortality, and imputation raised those estimates. The imputed intervals for these groups are also narrower because imputation restored suppressed information.
+
+---
+
+### Age × Sex Interaction (Likelihood Ratio Test):
+##### Does the effect of age on COVID-19 mortality rates differ by sex?
+
+```{r}
+# Same mixed model as nb_mixed, plus the age x sex interaction
+mixed_interaction <- glmmTMB(
+  COVID.19.Deaths ~ Sex *
+    Age.Group +
+    region +
+    factor(Year) +
+    offset(log(person_years)) +
+    (1 | State),
+  family = nbinom2,
+  data = model_df
+)
+
+# Convergence checks (warnings are hidden in this document, so check explicitly)
+mixed_interaction$fit$convergence == 0 # TRUE = optimizer converged
+mixed_interaction$sdr$pdHess # TRUE = standard errors are reliable
+
+anova(nb_mixed, mixed_interaction) # print the full comparison table
+
+# Likelihood ratio test, computed directly:
+# statistic = 2 x (log-likelihood with interaction - log-likelihood without it)
+ll_without <- logLik(nb_mixed)
+ll_with <- logLik(mixed_interaction)
+lrt_stat <- as.numeric(2 * (ll_with - ll_without))
+lrt_df <- attr(ll_with, "df") - attr(ll_without, "df") # number of added interaction terms
+lrt_p <- pchisq(lrt_stat, df = lrt_df, lower.tail = FALSE) # p-value from the chi-square distribution
+
+# Effect size: male-to-female rate ratio within each age group (from the interaction model).
+# For the reference age group, the ratio is exp(SexMale); for other groups, add that group's interaction term.
+b <- fixef(mixed_interaction)$cond # fixed-effect coefficients of the mixed model
+mf_ratio <- sapply(
+  levels(model_df$Age.Group),
+  function(a) {
+    term <- paste0("SexMale:Age.Group", a) # e.g., "SexMale:Age.Group85 years and over"
+    exp(b["SexMale"] + ifelse(term %in% names(b), b[term], 0))
+  }
+)
+
+kable(
+  data.frame(Age.Group = names(mf_ratio), Ratio = mf_ratio),
+  caption = "Male-to-Female Mortality Rate Ratio by Age Group (Mixed Model)",
+  digits = 2,
+  col.names = c("Age Group", "Male:Female Rate Ratio"),
+  row.names = FALSE,
+  align = "l"
+)
+```
+
+#### Interpretation:
+- Adding the age × sex interaction significantly improved model fit (likelihood ratio test: χ² = `r round(lrt_stat, 1)`, df = `r lrt_df`, p `r format.pval(lrt_p, digits = 2, eps = 0.001)`). The male-to-female mortality rate ratio therefore differs across age groups.
+- The male:female rate ratio ranged from `r round(min(mf_ratio, na.rm = TRUE), 2)` to `r round(max(mf_ratio, na.rm = TRUE), 2)` across age groups (table above).
 
 
 ### Interaction plot:
 ```{r}
-# Calculate means for each group
-interaction_subset <- joined_regional_no_AllAges_df %>%
+interaction_subset <- model_df %>%
   filter(Age.Group != "Under 1 year") %>%
+  mutate(Age.Group = factor(Age.Group, levels = age_groups_keep)) %>%
   group_by(Age.Group, Sex) %>%
-  summarise(mean_deaths = mean(COVID.19.Deaths))
+  summarise(
+    # pooled rate: total deaths / total person-years * 100,000, so large and small states are weighted correctly
+    rate = sum(COVID.19.Deaths) / sum(person_years) * 100000,
+    .groups = "drop"
+  )
 
-# Create the interaction plot
+# Create the interaction plot (rates, not counts)
 ggplot(
   interaction_subset,
-  aes(x = Age.Group, y = mean_deaths, group = Sex, color = Sex)
+  aes(x = Age.Group, y = rate, group = Sex, color = Sex)
 ) +
-  geom_line(size = 1) +
+  geom_line(linewidth = 1) + # "size" is deprecated for lines in current ggplot2
   geom_point(size = 3) +
+  scale_y_log10(
+    labels = function(x) {
+      format(x, scientific = FALSE, drop0trailing = TRUE, big.mark = ",")
+    }
+  ) + # log scale: parallel lines = no age x sex interaction
   labs(
     title = "Interaction of Age Group & Sex",
     x = "Age Group",
-    y = "Mean COVID-19 Deaths"
+    y = "COVID-19 Deaths per 100,000 Person-Years (log scale)"
   ) +
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-# summary(joined_regional_no_AllAges_df)
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(hjust = 0.5)
+  )
 ```
 
 #### Interpretation:
-- From ages 0-44 years old, the interaction plot suggests that sex has little effect on predicted COVID-19 deaths
-- According to the plot, being male increases COVID-19 deaths much more in those aged 45-84 years old than being female, as the average COVID-19 deaths for males is much higher in that age bracket
-- After age 84, the effect of sex on predicted COVID-19 deaths reverses depending on age group, indicating an interaction between the two predictive variables
+- Males had higher observed COVID-19 mortality rates than females from age 15 onward; below age 15, rates were nearly identical.
+- On the log scale, the vertical gap between the lines reflects the male-to-female rate ratio. The relative male excess was largest in middle and older adulthood (about ages 45–74) and narrowed at ages 85 and older, although males remained at higher risk.
+- This pattern agrees with the likelihood ratio test and the male:female rate ratio table above: the male excess varies by age rather than being constant.
+- Rates for the youngest groups are based on complete cases only, where suppression is heaviest, so those points are approximate.
 
 ---
 
 ### Panel data plot:
 
 ```{r}
-# summary(joined_regional_no_AllAges_df)
-
-region_year_panel <- joined_regional_no_AllAges_df %>%
+region_year_panel <- map_df %>%
+  mutate(
+    region = case_when(
+      State %in% west ~ "West",
+      State %in% midwest ~ "Midwest",
+      State %in% south ~ "South",
+      State %in% northeast ~ "Northeast"
+    )
+  ) %>%
+  filter(!is.na(region), !is.na(COVID.19.Deaths)) %>%
   group_by(region, Year) %>%
   summarise(
-    deaths = sum(COVID.19.Deaths, na.rm = TRUE),
-    population = sum(Population, na.rm = TRUE),
-    deaths_per_100000 = (deaths / population) * 100000,
+    deaths = sum(COVID.19.Deaths),
+    person_years = sum(Population * year_fraction), # total state population, adjusted for partial 2023
+    deaths_per_100000 = deaths / person_years * 100000,
     .groups = "drop"
   )
 
@@ -747,11 +1502,12 @@ ggplot(
   aes(x = Year, y = deaths_per_100000, color = region, group = region)
 ) +
   geom_line(linewidth = 1.2) +
-  geom_point(size = 2.5) + # optional—remove this line if you don't want points
+  geom_point(size = 2.5) +
   labs(
-    title = "COVID-19 Death Rates by Region (per 100,000)",
+    title = "Crude COVID-19 Death Rates by Region (per 100,000 Person-Years)",
     x = "Year",
-    y = "Deaths per 100,000",
+    y = "Deaths per 100,000 Person-Years",
+    caption = "2023 covers January–September; rates are annualized using person-years.",
     color = "Region"
   ) +
   scale_x_continuous(
@@ -760,14 +1516,13 @@ ggplot(
   ) +
   theme_minimal() +
   theme(
-    plot.title = element_text(face = "bold"),
+    plot.title = element_text(hjust = 0.5),
     axis.text.x = element_text(size = 11)
   )
-
 ```
 
 #### Interpretation:
-- All regions show a clear decline in COVID-19 mortality from 2021 to 2023
-- Mortality peaked in 2021 for every region
-- The South has the highest mortality peak, while the Northeast shows the lowest overall rates
-- By 2023, mortality drops to very low levels across all regions, indicating effective vaccinations, improved treatment, and reduced severity in later variants
+#### Interpretation:
+- The Northeast and the South had the two highest peaks, in different years: the Northeast in 2020 (about 165 deaths per 100,000 person-years), reflecting the early spring wave, and the South in 2021 (about 164). The Midwest remained high in both 2020 and 2021, and the West had the lowest rate in every year.
+- Mortality declined in every region from 2021 to 2023, and regional differences narrowed. By 2023 (January–September, annualized), rates were low everywhere, coinciding with widespread vaccination and prior infection, improved treatment, and less severe later variants.
+- These are crude rates, not adjusted for age. After adjusting for age, sex, and year, the mixed model estimates the Northeast as lower than the Midwest, so the Northeast's high crude rate in 2020 partly reflects its older population.

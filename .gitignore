@@ -1,0 +1,5 @@
+/.quarto/
+
+**/*.quarto_ipynb
+src/README.html
+src/README_files/
